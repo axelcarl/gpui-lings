@@ -1,0 +1,5 @@
+/target/
+/playground/target/
+/.DS_Store
+/.gpui-lings-progress
+/.gpui-lings-progress.tmp

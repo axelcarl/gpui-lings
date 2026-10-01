@@ -1,0 +1,14 @@
+[package]
+name = "gpui-lings-playground"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# Kit pins a compatible Zed GPUI snapshot. The course starts with GPUI APIs;
+# later lessons use Base controls and a virtual list through Kit's facade.
+gpui-kit = { version = "=0.7.0", default-features = false }
+
+[dev-dependencies]
+# Headless view tests need GPUI's test-support feature. Keep the version aligned
+# with the snapshot pinned by gpui-kit 0.7.0.
+gpui = { package = "gpui-pre", version = "=0.3.7", features = ["test-support"] }
