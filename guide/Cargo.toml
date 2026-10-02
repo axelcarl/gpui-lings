@@ -1,0 +1,14 @@
+[package]
+name = "gpui-lings"
+version = "0.1.0"
+edition = "2024"
+
+# The guide intentionally has no GPUI dependency. It can list lessons and hints
+# even before the much larger native playground has been built.
+
+[[bin]]
+name = "gpui-lings"
+path = "src/main.rs"
+
+[dependencies]
+gpui-lings-shared = { path = "../shared" }

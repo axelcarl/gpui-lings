@@ -37,9 +37,12 @@ impl Render for NotifyPanel {
             .child(
                 button("notify-enable", "Enable signal", true)
                     .debug_selector(|| "notify-enable".into())
-                    .on_click(cx.listener(|this, _, _, _cx| {
+                    // The listener's arguments: this view (`this`), the click
+                    // event, the window and `cx`, this view's `Context<NotifyPanel>`.
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        // Changing a field doesn't redraw anything by itself.
                         this.active = true;
-                        // TODO: Tell GPUI this entity changed.
+                        // TODO: Tell GPUI this entity changed, so it renders again.
                     })),
             )
             .child(if self.active {
@@ -52,6 +55,8 @@ impl Render for NotifyPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

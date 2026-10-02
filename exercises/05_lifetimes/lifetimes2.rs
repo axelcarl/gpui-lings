@@ -37,15 +37,21 @@ impl TasksPanel {
     fn load(&mut self, cx: &mut Context<Self>) {
         self.status = Some("Loading…");
         cx.notify();
+        // `cx.spawn` starts the async block on GPUI's foreground executor and
+        // returns a Task, a handle that owns the work. The block receives a weak
+        // handle to this view (`this`) and an async context (`cx`).
         let task = cx.spawn(async move |this, cx| {
+            // Wait a second without blocking the UI.
             cx.background_executor().timer(Duration::from_secs(1)).await;
+            // The view may have closed meanwhile, so `update` returns a Result.
             let _ = this.update(cx, |this, cx| {
                 this.status = Some("Ready");
                 cx.notify();
             });
         });
-        // TODO: Retain the task so it can finish, and remain cancellable.
-        drop(task);
+        // TODO: `task` is dropped when `load` returns, and dropping a Task
+        // cancels its work before the timer fires. Store it in `self.task` so
+        // the panel owns it: Cancel drops it, and a new load replaces it.
     }
 }
 impl Render for TasksPanel {
@@ -64,6 +70,7 @@ impl Render for TasksPanel {
                 button("task-cancel", "Cancel", false)
                     .debug_selector(|| "task-cancel".into())
                     .on_click(cx.listener(|this, _, _, cx| {
+                        // Taking the task out of the panel drops it: cancelled.
                         this.task.take();
                         this.status = Some("Cancelled");
                         cx.notify();
@@ -77,6 +84,8 @@ impl Render for TasksPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

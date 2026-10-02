@@ -28,20 +28,30 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+// Numbers each new panel's file, so one panel's cleanup never deletes another
+// panel's setting.
 static NEXT_STORE: AtomicUsize = AtomicUsize::new(0);
 
-// TODO: Read the saved value. Missing or invalid data means Comfortable.
+// Returns the stored setting: true for Compact, false for Comfortable. The
+// panel calls it on startup (`at_path`) and when Load is clicked.
 fn load_setting(path: &Path) -> bool {
-    let _ = path;
+    // TODO: This ignores the file and always returns Comfortable. Read it with
+    // `fs::read_to_string(path)`, which returns a Result: Err when the file is
+    // missing or unreadable. Return true only when the text, trimmed of
+    // whitespace, is "compact"; anything else means Comfortable.
     false
 }
 
 pub struct PersistencePanel {
+    // Where the setting is stored.
     path: PathBuf,
     compact: bool,
+    // The result of the last button press, shown under the preview.
     status: &'static str,
 }
 
+// The playground's panel: a new file in the system's temporary directory,
+// removed first so every run starts with nothing saved.
 impl Default for PersistencePanel {
     fn default() -> Self {
         let id = NEXT_STORE.fetch_add(1, Ordering::Relaxed);
@@ -55,6 +65,7 @@ impl Default for PersistencePanel {
 }
 
 impl PersistencePanel {
+    // Restores whatever is stored at `path`, as an app does at startup.
     fn at_path(path: PathBuf) -> Self {
         let compact = load_setting(&path);
         Self {
@@ -64,6 +75,7 @@ impl PersistencePanel {
         }
     }
 
+    // Stores the setting as plain text: "compact" or "comfortable".
     fn save(&mut self, cx: &mut Context<Self>) {
         let value = if self.compact {
             "compact"
@@ -85,6 +97,7 @@ impl PersistencePanel {
     }
 }
 
+// Deletes the temporary file when the panel goes away.
 impl Drop for PersistencePanel {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.path);
@@ -119,6 +132,7 @@ impl Render for PersistencePanel {
             .child(
                 button("persist-corrupt", "Write invalid data", false)
                     .debug_selector(|| "persist-corrupt".into())
+                    // Stores text that is neither value, to try the fallback.
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.status = if fs::write(&this.path, "not-a-setting").is_ok() {
                             "Invalid file"
@@ -147,6 +161,8 @@ impl Render for PersistencePanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

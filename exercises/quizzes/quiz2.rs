@@ -1,4 +1,9 @@
-//! 24 — Input checkpoint: command menu
+//! 24 — Quiz 2: command menu
+//!
+//! This is a quiz for the following lessons:
+//! - 07 Contexts & notify
+//! - 12–13 Actions & focus
+//! - 21–23 Deeper contexts & input
 //!
 //! A small command menu combines actions, focus, keyboard routing, and a
 //! cancel path. Ctrl-P opens it only while this view has focus. Arrow keys

@@ -1,4 +1,8 @@
-//! 20 — Layout checkpoint: compact inspector
+//! 20 — Quiz 1: compact inspector
+//!
+//! This is a quiz for the following lessons:
+//! - 12–13 Actions & focus
+//! - 16–19 Responsive views
 //!
 //! This inspector combines recent lessons in a new view: a layout that changes
 //! with window width, a list that scrolls inside a fixed frame, a selected row,

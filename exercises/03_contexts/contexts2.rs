@@ -34,6 +34,8 @@ pub struct ListenerPanel {
 }
 
 impl ListenerPanel {
+    // A method with the listener signature: this view, the event, the window
+    // and this view's context. It already updates the count and notifies.
     pub fn record_click(&mut self, _: &ClickEvent, _: &mut Window, cx: &mut Context<Self>) {
         self.clicks += 1;
         cx.notify();
@@ -41,7 +43,8 @@ impl ListenerPanel {
 }
 
 impl Render for ListenerPanel {
-    fn render(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    // Inside `render`, `cx` is this view's `Context<ListenerPanel>`.
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .flex()
             .flex_col()
@@ -51,12 +54,17 @@ impl Render for ListenerPanel {
             .child(
                 button("listener-record", "Call the handler", true)
                     .debug_selector(|| "listener-record".into())
-                    // TODO: Adapt record_click into an element callback.
+                    // An element callback only receives `|event, window, app|`,
+                    // so it can't reach this view on its own.
+                    // TODO: Replace the empty callback with `cx.listener(...)`
+                    // wrapped around this view's `record_click` method.
                     .on_click(|_, _, _| {}),
             )
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

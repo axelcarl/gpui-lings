@@ -2,7 +2,8 @@
 """Report how much each reference fix asks of the learner, and whether a TODO marks it.
 
 Regions are fix sites more than three lines apart, so one fault can span several.
-The marker is "line" when a TODO comment sits within one line of a fix site,
+The marker is "line" when a TODO comment (with the comment lines that continue it)
+sits within one line of a fix site,
 "function" when the file has TODOs elsewhere, and "none" without any. Chapters 01–05
 use line markers, later lessons function markers, and checkpoints none; see
 lesson-plan.md#checkpoints-and-retrieval.
@@ -22,7 +23,14 @@ LESSONS = re.findall(r'id: "(\d+)",.*?title: "([^"]+)",.*?file: "exercises/([^"]
 
 def audit(file):
     source = (ROOT / "exercises" / file).read_text()
-    todos = [i for i, line in enumerate(source.splitlines()) if re.match(r"\s*//[^!].*TODO", line)]
+    lines = source.splitlines()
+    todos = []
+    for i, line in enumerate(lines):
+        if re.match(r"\s*//[^!].*TODO", line):
+            end = i
+            while end + 1 < len(lines) and re.match(r"\s*//[^!]", lines[end + 1]) and "TODO" not in lines[end + 1]:
+                end += 1
+            todos.append((i, end))
     spans, changed = [], 0
     for before, after in FIXES[file]:
         start = source[: source.index(before)].count("\n")
@@ -31,7 +39,7 @@ def audit(file):
         changed += sum(line[:2] in ("+ ", "- ") for line in diff)
     spans.sort()
     regions = 1 + sum(b[0] - a[1] > 3 for a, b in zip(spans, spans[1:]))
-    if any(s - 1 <= t <= e + 1 for s, e in spans for t in todos):
+    if any(s - 1 <= end and start <= e + 1 for s, e in spans for start, end in todos):
         marker = "line"
     else:
         marker = "function" if todos else "none"

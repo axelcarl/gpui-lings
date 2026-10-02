@@ -26,18 +26,24 @@ use gpui_kit::{
     Context, FocusHandle, IntoElement, KeyBinding, Render, Window, actions, div, prelude::*,
 };
 
+// Declares the RouteCommand action, as in lesson 12.
 actions!(gpui_lings_routes, [RouteCommand]);
 
 pub struct PropagationPanel {
     parent_focus: FocusHandle,
     child_focus: FocusHandle,
+    // Whether the child handles RouteCommand itself. The Use parent / Use child
+    // button flips it.
     child_enabled: bool,
+    // How many times each handler has handled the action.
     parent_calls: usize,
     child_calls: usize,
 }
 
 impl PropagationPanel {
     pub fn new(cx: &mut Context<Self>) -> Self {
+        // Ctrl-R dispatches RouteCommand while focus is anywhere inside the
+        // "RoutePanel" key context, which the parent element sets in render.
         cx.bind_keys([KeyBinding::new("ctrl-r", RouteCommand, Some("RoutePanel"))]);
         Self {
             parent_focus: cx.focus_handle(),
@@ -48,8 +54,13 @@ impl PropagationPanel {
         }
     }
 
-    // TODO: When local handling is off, leave the action for the parent.
+    // Action handlers receive the action, the window and this view's context.
+    // An action travels from the focused element up through its ancestors.
+    // While focus is inside the child, the child's handler gets it first.
     fn route_in_child(&mut self, _: &RouteCommand, _: &mut Window, cx: &mut Context<Self>) {
+        // TODO: With local handling off, this handler does nothing, yet the
+        // action still stops here: running a handler consumes it by default.
+        // In that case, call `cx.propagate()` so it continues to the parent.
         if self.child_enabled {
             self.child_calls += 1;
             cx.notify();
@@ -68,7 +79,11 @@ impl Render for PropagationPanel {
         div()
             .id("route-parent")
             .track_focus(&self.parent_focus)
+            // The context the binding needs. It sits on the parent, so Ctrl-R
+            // matches whether the parent or the child has focus.
             .key_context("RoutePanel")
+            // The fallback: runs when the parent itself has focus, or when the
+            // child lets the action continue.
             .on_action(cx.listener(Self::route_in_parent))
             .flex()
             .flex_col()
@@ -85,6 +100,7 @@ impl Render for PropagationPanel {
                 div()
                     .id("route-child")
                     .track_focus(&self.child_focus)
+                    // Nearer the focus than the parent, so it runs first.
                     .on_action(cx.listener(Self::route_in_child))
                     .flex()
                     .flex_col()
@@ -131,6 +147,8 @@ impl Render for PropagationPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

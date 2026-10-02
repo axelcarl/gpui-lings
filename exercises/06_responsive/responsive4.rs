@@ -25,6 +25,8 @@ use gpui_kit::{
 
 pub struct DragPanel {
     value: u8,
+    // While dragging: where the pointer went down, and the value at that time.
+    // `None` means idle.
     drag_start: Option<(Pixels, u8)>,
 }
 
@@ -38,6 +40,7 @@ impl Default for DragPanel {
 }
 
 impl DragPanel {
+    // Moving changes the value only during a drag: two pixels per point.
     fn move_pointer(&mut self, x: Pixels, cx: &mut Context<Self>) {
         if let Some((start, initial)) = self.drag_start {
             let delta = (x - start).as_f32() / 2.0;
@@ -82,7 +85,7 @@ impl Render for DragPanel {
                     .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
                         this.move_pointer(event.position.x, cx);
                     }))
-                    // TODO: Releasing the button anywhere, inside or outside, must end the drag.
+                    // `on_mouse_up` hears releases over the track only.
                     .on_mouse_up(
                         MouseButton::Left,
                         cx.listener(|this, _, _, cx| {
@@ -90,7 +93,10 @@ impl Render for DragPanel {
                             cx.notify();
                         }),
                     )
-                    .on_mouse_up_out(MouseButton::Left, cx.listener(|_this, _, _, _cx| {})),
+                    // `on_mouse_up_out` hears releases everywhere else.
+                    // TODO: Releasing outside the track must end the drag too:
+                    // clear `drag_start` and notify, like the handler above.
+                    .on_mouse_up_out(MouseButton::Left, cx.listener(|this, _, _, cx| {})),
             )
             .child(
                 div()
@@ -116,6 +122,8 @@ impl Render for DragPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

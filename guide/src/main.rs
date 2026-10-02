@@ -1,8 +1,7 @@
-#[path = "../shared/lessons.rs"]
-pub mod lessons;
-#[path = "../shared/preview.rs"]
-mod preview;
+use gpui_lings_shared::{lessons, preview};
+mod input;
 mod process;
+mod session;
 mod state;
 mod terminal;
 use process::InterruptibleCommand;
@@ -17,27 +16,25 @@ use std::{
     collections::hash_map::DefaultHasher,
     env, fs,
     hash::{Hash, Hasher},
-    io::{self, BufRead},
+    io,
     path::{Path, PathBuf},
     process::{Child, Command, ExitCode, ExitStatus, Output, Stdio},
-    sync::mpsc,
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CheckState {
+pub enum CheckState {
     Passed,
     Failed,
     BuildError,
 }
 
-#[derive(Clone)]
-struct Report {
-    state: CheckState,
-    summary: String,
-    details: String,
-    full_details: Option<String>,
+#[derive(Clone, Debug)]
+pub struct Report {
+    pub state: CheckState,
+    pub summary: String,
+    pub details: String,
 }
 
 impl Report {
@@ -47,11 +44,11 @@ impl Report {
             state: CheckState::BuildError,
             summary: message.clone(),
             details: message,
-            full_details: None,
         }
     }
-    fn full_details(&self) -> &str {
-        self.full_details.as_deref().unwrap_or(&self.details)
+
+    pub fn passed(&self) -> bool {
+        self.state == CheckState::Passed
     }
 
     fn status(&self) -> &'static str {
@@ -63,21 +60,16 @@ impl Report {
     }
 }
 
+/// The repository: the guide's own package lives in guide/.
 fn root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .to_owned()
 }
+/// The playground's package; its manifest is the workspace root.
 fn manifest() -> PathBuf {
-    root().join("playground/Cargo.toml")
-}
-fn load_progress() -> usize {
-    LessonState::load(&root()).current
-}
-fn save_progress(state: &mut LessonState, index: usize) -> io::Result<()> {
-    let mut next = state.clone();
-    next.current = index;
-    next.save(&root())?;
-    *state = next;
-    Ok(())
+    root().join("Cargo.toml")
 }
 
 fn output_text(output: &Output) -> String {
@@ -102,7 +94,6 @@ fn evaluate_output(success: bool, details: String) -> Report {
             }
             .into(),
             details,
-            full_details: None,
         };
     }
     if success && !plain.contains("test result: ok. 1 passed; 0 failed; 0 ignored;") {
@@ -110,23 +101,17 @@ fn evaluate_output(success: bool, details: String) -> Report {
             state: CheckState::BuildError,
             summary: "Exercise test did not run; check for #[ignore]".into(),
             details,
-            full_details: None,
         };
     }
-    if success {
-        Report {
-            state: CheckState::Passed,
-            summary: "Passed".into(),
-            details,
-            full_details: None,
-        }
+    let (state, summary) = if success {
+        (CheckState::Passed, "Passed")
     } else {
-        Report {
-            state: CheckState::Failed,
-            summary: "Not passing yet".into(),
-            details,
-            full_details: None,
-        }
+        (CheckState::Failed, "Not passing yet")
+    };
+    Report {
+        state,
+        summary: summary.into(),
+        details,
     }
 }
 
@@ -157,7 +142,6 @@ fn check_lesson_with_cancel(index: usize, cancelled: &mut dyn FnMut() -> bool) -
                         state: CheckState::BuildError,
                         summary: "Compilation failed".into(),
                         details: output_text(&output),
-                        full_details: None,
                     };
                 }
                 Err(error) => return Report::error(format!("Could not run rustc: {error}")),
@@ -185,31 +169,6 @@ fn check_lesson_with_cancel(index: usize, cancelled: &mut dyn FnMut() -> bool) -
     }
 }
 
-struct SessionChecks {
-    reports: Vec<Report>,
-}
-
-impl SessionChecks {
-    fn completed(&self) -> usize {
-        // Every verified exercise counts, including those after a pending lesson.
-        self.reports
-            .iter()
-            .filter(|r| r.state == CheckState::Passed)
-            .count()
-    }
-
-    fn resume_index(&self, current: usize) -> usize {
-        self.reports
-            .iter()
-            .take(current)
-            .position(|r| {
-                r.state == CheckState::Failed
-                    || (current == LESSONS.len() && r.state != CheckState::Passed)
-            })
-            .unwrap_or(current)
-    }
-}
-
 fn native_report(test: &str, details: &str) -> Report {
     let prefix = format!("test {test} ... ");
     let plain = terminal::plain_text(details);
@@ -229,7 +188,6 @@ fn native_report(test: &str, details: &str) -> Report {
         .lines()
         .find(|line| terminal::plain_text(line).starts_with(&prefix));
     let marker = format!("---- {test} stdout ----\n");
-    let full_details = Some(details.to_owned());
     let details = details.split_once(&marker).map_or_else(
         || details.to_owned(),
         |(_, failure)| {
@@ -251,62 +209,60 @@ fn native_report(test: &str, details: &str) -> Report {
         state,
         summary: summary.into(),
         details,
-        full_details,
     }
 }
 
-fn check_reached(index: usize, cancelled: &mut dyn FnMut() -> bool) -> SessionChecks {
+/// Rustlings' "check all": every exercise, with native checks sharing one
+/// Cargo build and test process through multiple exact libtest filters.
+fn check_all(cancelled: &mut dyn FnMut() -> bool) -> Vec<Report> {
     let color = terminal::color_argument();
-    let reached = &LESSONS[..(index + 1).min(LESSONS.len())];
-    let native: Vec<_> = reached
+    let native: Vec<_> = LESSONS
         .iter()
         .filter(|lesson| matches!(lesson.verifier, Verifier::Native))
+        .map(|lesson| lesson.test)
         .collect();
-    // Multiple exact libtest filters share one Cargo build and test process.
-    let output = if native.is_empty() {
-        None
-    } else {
-        Some(
-            Command::new("cargo")
-                .args(["test", "--quiet", color, "--manifest-path"])
-                .arg(manifest())
-                .args(["--lib", "--", "--exact", color, "--format=pretty"])
-                .args(native.iter().map(|lesson| lesson.test))
-                .interruptible_output(cancelled)
-                .map(|output| output_text(&output))
-                .unwrap_or_else(|error| format!("Could not run the checks: {error}")),
-        )
-    };
-    let reports = reached
+    let output = Command::new("cargo")
+        .args(["test", "--quiet", color, "--manifest-path"])
+        .arg(manifest())
+        .args(["--lib", "--", "--exact", color, "--format=pretty"])
+        .args(&native)
+        .interruptible_output(cancelled)
+        .map(|output| output_text(&output))
+        .unwrap_or_else(|error| format!("Could not run the checks: {error}"));
+    LESSONS
         .iter()
         .enumerate()
         .map(|(index, lesson)| match lesson.verifier {
             Verifier::Lightweight => check_lesson_with_cancel(index, cancelled),
-            Verifier::Native => native_report(lesson.test, output.as_deref().unwrap()),
+            Verifier::Native => native_report(lesson.test, &output),
         })
-        .collect();
-    SessionChecks { reports }
+        .collect()
 }
 
-fn check_progress(
-    index: &mut usize,
-    state: &mut LessonState,
-    app: &mut PlaygroundProcess,
-) -> Option<Report> {
-    let checks = check_reached(state.reached().max(*index), &mut || app.has_exited());
-    if app.has_exited() {
-        return None;
+/// Rustlings resets exercises it doesn't embed with `git stash push -- <file>`,
+/// so the learner's version stays recoverable with `git stash pop`.
+fn reset_exercise(index: usize) -> Result<(), String> {
+    let file = LESSONS[index].file;
+    let output = Command::new("git")
+        .current_dir(root())
+        .args(["stash", "push", "--"])
+        .arg(file)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|error| format!("Could not run `git stash push -- {file}`: {error}"))?;
+    let text = output_text(&output);
+    if output.status.success() && text.contains("No local changes to save") {
+        Err(format!(
+            "Nothing to reset: {file} has no changes since the last commit."
+        ))
+    } else if output.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "`git stash push -- {file}` failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))
     }
-    for (i, report) in checks.reports.iter().enumerate() {
-        state.set_done(i, report.state == CheckState::Passed);
-    }
-    app.completed = state.completed();
-    let resume = checks.resume_index(*index);
-    if let Err(error) = save_progress(state, resume) {
-        return Some(Report::error(format!("Could not save your place: {error}")));
-    }
-    *index = resume;
-    checks.reports.get(*index).cloned()
 }
 
 /// Hash sorted paths and contents: detect deletion, atomic saves and timestamp ties.
@@ -333,35 +289,26 @@ fn fingerprint(directory: &Path) -> io::Result<u64> {
 
 fn source_fingerprint() -> Option<u64> {
     let mut hasher = DefaultHasher::new();
-    fingerprint(&root().join("playground/src"))
-        .ok()?
-        .hash(&mut hasher);
-    fingerprint(&root().join("exercises"))
-        .ok()?
-        .hash(&mut hasher);
-    for file in [
-        "playground/Cargo.toml",
-        "shared/lessons.rs",
-        "shared/preview.rs",
-    ] {
-        fs::read(root().join(file)).ok()?.hash(&mut hasher);
+    for directory in ["playground/src", "exercises", "shared"] {
+        fingerprint(&root().join(directory)).ok()?.hash(&mut hasher);
     }
+    fs::read(manifest()).ok()?.hash(&mut hasher);
     Some(hasher.finish())
 }
 
 #[derive(Default)]
-struct PlaygroundProcess {
+pub struct PlaygroundProcess {
     child: Option<Child>,
     directory: Option<PathBuf>,
     generation: u64,
-    completed: usize,
+    pub completed: usize,
 }
 impl PlaygroundProcess {
-    fn exit_status(&mut self) -> io::Result<Option<ExitStatus>> {
+    pub fn exit_status(&mut self) -> io::Result<Option<ExitStatus>> {
         self.child.as_mut().map_or(Ok(None), Child::try_wait)
     }
 
-    fn has_exited(&mut self) -> bool {
+    pub fn has_exited(&mut self) -> bool {
         // No child yet (for example after an initial build error) is recoverable.
         !matches!(self.exit_status(), Ok(None))
     }
@@ -372,7 +319,12 @@ impl PlaygroundProcess {
             let _ = child.wait();
         }
     }
-    fn publish(&self, index: usize, report: Option<&Report>, refresh: Refresh) -> io::Result<()> {
+    pub fn publish(
+        &self,
+        index: usize,
+        report: Option<&Report>,
+        refresh: Refresh,
+    ) -> io::Result<()> {
         if let Some(directory) = &self.directory {
             PreviewState {
                 index,
@@ -385,15 +337,26 @@ impl PlaygroundProcess {
         Ok(())
     }
 
-    fn restart(&mut self, index: usize, report: Option<&Report>) -> Result<(), String> {
-        let result = self.replace(index, report);
+    /// `cancelled` also stops the build, for example when the learner quits.
+    pub fn restart(
+        &mut self,
+        index: usize,
+        report: Option<&Report>,
+        cancelled: &mut dyn FnMut() -> bool,
+    ) -> Result<(), String> {
+        let result = self.replace(index, report, cancelled);
         if result.is_err() {
             let _ = self.publish(index, report, Refresh::Failed);
         }
         result
     }
 
-    fn replace(&mut self, index: usize, report: Option<&Report>) -> Result<(), String> {
+    fn replace(
+        &mut self,
+        index: usize,
+        report: Option<&Report>,
+        cancelled: &mut dyn FnMut() -> bool,
+    ) -> Result<(), String> {
         self.publish(index, report, Refresh::Building)
             .map_err(|e| e.to_string())?;
         let output = Command::new("cargo")
@@ -404,7 +367,7 @@ impl PlaygroundProcess {
                 "--manifest-path",
             ])
             .arg(manifest())
-            .interruptible_output(&mut || self.has_exited())
+            .interruptible_output(&mut || self.has_exited() || cancelled())
             .map_err(|e| format!("Could not run cargo: {e}"))?;
         if !output.status.success() {
             return Err(output_text(&output));
@@ -419,7 +382,7 @@ impl PlaygroundProcess {
                 "--manifest-path",
             ])
             .arg(manifest())
-            .interruptible_output(&mut || self.has_exited())
+            .interruptible_output(&mut || self.has_exited() || cancelled())
             .map_err(|e| e.to_string())?;
         if !metadata.status.success() {
             return Err(output_text(&metadata));
@@ -477,7 +440,7 @@ impl PlaygroundProcess {
             .stderr(stderr)
             .spawn()
             .map_err(|e| e.to_string())?;
-        self.handoff(replacement, &ready, Duration::from_secs(15))
+        self.handoff(replacement, &ready, Duration::from_secs(15), cancelled)
             .map_err(|error| format!("{error}\n{}", fs::read_to_string(log).unwrap_or_default()))?;
         self.generation = generation;
         Ok(())
@@ -488,11 +451,12 @@ impl PlaygroundProcess {
         mut replacement: Child,
         ready: &Path,
         timeout: Duration,
+        cancelled: &mut dyn FnMut() -> bool,
     ) -> Result<(), String> {
         // Keep the old window until the replacement has rendered its first frame.
-        if let Err(error) =
-            wait_for_preview(&mut replacement, ready, timeout, &mut || self.has_exited())
-        {
+        if let Err(error) = wait_for_preview(&mut replacement, ready, timeout, &mut || {
+            self.has_exited() || cancelled()
+        }) {
             let _ = replacement.kill();
             let _ = replacement.wait();
             return Err(error);
@@ -575,214 +539,26 @@ fn target_directory(metadata: &str) -> Option<String> {
     None
 }
 
-fn learning_session() -> ExitCode {
-    let ui = terminal::Terminal::new();
-    let mut state = LessonState::load(&root());
-    let mut index = state.current;
-    let mut app = PlaygroundProcess::default();
-    let mut last_change = source_fingerprint();
-    ui.dashboard(index, app.completed, None, "Checking…", None);
-    let mut report = check_progress(&mut index, &mut state, &mut app);
-    ui.dashboard(
-        index,
-        app.completed,
-        report.as_ref(),
-        "Building playground…",
-        None,
-    );
-    let mut app_error = app.restart(index, report.as_ref()).err();
-    ui.dashboard(
-        index,
-        app.completed,
-        report.as_ref(),
-        app_message(&app_error),
-        app_error.as_deref(),
-    );
-
-    let (tx, rx) = mpsc::channel::<String>();
-    thread::spawn(move || {
-        for line in io::stdin().lock().lines() {
-            match line {
-                Ok(line) if tx.send(line.trim().to_owned()).is_ok() => {}
-                _ => break,
-            }
-        }
-    });
-    let mut pending_change = last_change;
-    // The lesson whose hints are showing, and the next level to reveal.
-    let mut hint = (index, 0);
-    loop {
-        if app.has_exited() {
-            break;
-        }
-        let mut rerun = false;
-        let command = rx.recv_timeout(Duration::from_millis(100));
-        if app.has_exited() {
-            break;
-        }
-        match command {
-            Ok(command) => {
-                let mut panel = app_error.clone();
-                let mut message = app_message(&app_error).to_string();
-                match command.as_str() {
-                    "q" | "quit" => break,
-                    "h" | "hint" => {
-                        let level = if hint.0 == index { hint.1 } else { 0 };
-                        panel = LESSONS.get(index).map(|l| l.hint(level, "h again"));
-                        hint = (index, level + 1);
-                    }
-                    "?" | "help" => panel = Some(terminal::SESSION_HELP.into()),
-                    "l" | "list" => panel = Some(terminal::lesson_list(&state)),
-                    "d" | "details" => {
-                        panel = Some(format!(
-                            "CHECK DETAILS\n{}{}",
-                            report
-                                .as_ref()
-                                .map_or("No check needed.", Report::full_details),
-                            app_error
-                                .as_ref()
-                                .map_or(String::new(), |e| format!("\nPLAYGROUND BUILD\n{e}"))
-                        ))
-                    }
-                    "g" | "guide" => {
-                        panel = LESSONS.get(index).map(|l| {
-                            fs::read_to_string(root().join(l.file))
-                                .map(|source| lessons::instructions(&source))
-                                .unwrap_or_else(|e| e.to_string())
-                        })
-                    }
-                    "r" | "run" => rerun = true,
-                    "p" | "previous" if index > 0 => match save_progress(&mut state, index - 1) {
-                        Ok(()) => {
-                            index -= 1;
-                            rerun = true;
-                        }
-                        Err(error) => message = format!("Could not save your place: {error}"),
-                    },
-                    "n" | "next" if index < LESSONS.len() => {
-                        ui.dashboard(index, app.completed, report.as_ref(), "Checking…", None);
-                        let _ = app.publish(index, report.as_ref(), Refresh::Checking);
-                        let previous_index = index;
-                        report = check_progress(&mut index, &mut state, &mut app);
-                        if app.has_exited() {
-                            break;
-                        }
-                        rerun |= index != previous_index;
-                        if report
-                            .as_ref()
-                            .is_some_and(|r| r.state == CheckState::Passed)
-                        {
-                            let next = state.next_pending();
-                            match save_progress(&mut state, next) {
-                                Ok(()) => {
-                                    index = next;
-                                    rerun = true;
-                                }
-                                Err(error) => {
-                                    message = format!("Could not save your place: {error}")
-                                }
-                            }
-                        } else {
-                            message = "Not passing yet · h for a hint".into();
-                        }
-                        if !rerun {
-                            let refresh = if app_error.is_some() {
-                                Refresh::Failed
-                            } else {
-                                Refresh::Current
-                            };
-                            let _ = app.publish(index, report.as_ref(), refresh);
-                        }
-                    }
-                    "n" | "next" => message = "All exercises complete · p to revisit".into(),
-                    "p" | "previous" => message = "Already at the first exercise".into(),
-                    "" => {}
-                    _ => message = "Unknown command · ? for help".into(),
-                }
-                if !rerun {
-                    ui.dashboard(
-                        index,
-                        app.completed,
-                        report.as_ref(),
-                        &message,
-                        panel.as_deref(),
-                    );
-                }
-            }
-            Err(mpsc::RecvTimeoutError::Disconnected) => break,
-            Err(mpsc::RecvTimeoutError::Timeout) => {}
-        }
-        let change = source_fingerprint();
-        // Wait for two matching observations so editor atomic saves settle first.
-        if change != last_change && change == pending_change {
-            rerun = true;
-        }
-        pending_change = change;
-        if rerun {
-            // Capture before the build so edits made during a build trigger the next check.
-            last_change = change;
-            ui.dashboard(index, app.completed, report.as_ref(), "Checking…", None);
-            let _ = app.publish(index, report.as_ref(), Refresh::Checking);
-            report = check_progress(&mut index, &mut state, &mut app);
-            if app.has_exited() {
-                break;
-            }
-            ui.dashboard(
-                index,
-                app.completed,
-                report.as_ref(),
-                "Refreshing playground…",
-                None,
-            );
-            app_error = app.restart(index, report.as_ref()).err();
-            if app.has_exited() {
-                break;
-            }
-            ui.dashboard(
-                index,
-                app.completed,
-                report.as_ref(),
-                app_message(&app_error),
-                app_error.as_deref(),
-            );
-        }
-    }
-    let code = match app.exit_status() {
-        Ok(Some(status)) if !status.success() => {
-            eprintln!("\n  Playground exited unexpectedly ({status}).");
-            ExitCode::FAILURE
-        }
-        Err(error) => {
-            eprintln!("\n  Could not monitor the playground: {error}");
-            ExitCode::FAILURE
-        }
-        _ => ExitCode::SUCCESS,
-    };
-    println!("\n  Session closed.\n");
-    code
-}
-
-fn app_message(error: &Option<String>) -> &'static str {
-    if error.is_some() {
-        "Playground refresh failed · see diagnostics above"
-    } else {
-        ""
-    }
-}
-
 fn selected_lesson(id: Option<&str>) -> Result<usize, String> {
     match id {
-        Some(id) => LESSONS
-            .iter()
-            .position(|l| l.id == id || l.name == id)
+        Some(id) => lesson_index(id)
             .ok_or_else(|| format!("Unknown lesson: {id}. Use list to see the available IDs.")),
-        None => Ok(load_progress().min(LESSONS.len() - 1)),
+        None => Ok(LessonState::load(&root()).current.min(LESSONS.len() - 1)),
     }
+}
+
+/// A lesson by number (`7`, `07`) or name (`contexts1`).
+fn lesson_index(id: &str) -> Option<usize> {
+    let number = id.parse::<usize>().ok();
+    LESSONS
+        .iter()
+        .enumerate()
+        .position(|(i, l)| l.name == id || number == Some(i + 1))
 }
 
 fn print_usage() {
     println!(
-        "\n  ./gpui-lings             Start the session\n  ./gpui-lings list        List exercises\n  ./gpui-lings check [ID]  Check all exercises, or one\n  ./gpui-lings hint [ID] [N]  Show a hint, or its Nth level\n  ./gpui-lings app [ID]    Preview an exercise\n\n  In a session, use ? for commands. Type a command, then Enter.\n"
+        "\n  ./gpui-lings                Start the session\n  ./gpui-lings <lesson>       Start the session at a lesson, e.g. 12 or interaction1\n  ./gpui-lings list           List exercises\n  ./gpui-lings check [ID]     Check all exercises, or one\n  ./gpui-lings hint [ID] [N]  Show a hint, or its Nth level\n  ./gpui-lings reset ID       Reset an exercise (stashes your changes with git)\n  ./gpui-lings app [ID]       Preview an exercise\n\n  In a session, press a key: n next, h hint, l list, c check all, x reset, q quit.\n"
     );
 }
 
@@ -791,7 +567,7 @@ fn execute(args: &[String]) -> Result<ExitCode, String> {
     let id = args.get(1).map(String::as_str);
     let max_args = match command {
         Some("hint") => 3,
-        Some("check" | "app") => 2,
+        Some("check" | "app" | "reset") => 2,
         _ => 1,
     };
     if args.len() > max_args {
@@ -799,13 +575,16 @@ fn execute(args: &[String]) -> Result<ExitCode, String> {
     }
     let ui = terminal::Terminal::new();
     match command {
-        None | Some("watch") => Ok(learning_session()),
+        None | Some("watch") => Ok(session::run(None)),
         Some("help" | "--help" | "-h") => {
             print_usage();
             Ok(ExitCode::SUCCESS)
         }
         Some("list") => {
-            println!("\n{}", terminal::lesson_list(&LessonState::load(&root())));
+            println!(
+                "{}",
+                session::lesson_table(&ui, &LessonState::load(&root()))
+            );
             Ok(ExitCode::SUCCESS)
         }
         Some("hint") => {
@@ -824,15 +603,17 @@ fn execute(args: &[String]) -> Result<ExitCode, String> {
             Ok(ExitCode::SUCCESS)
         }
         Some("check") => {
-            let indices: Vec<_> = match id {
-                Some(_) => vec![selected_lesson(id)?],
-                None => (0..LESSONS.len()).collect(),
+            let reports: Vec<_> = match id {
+                Some(_) => {
+                    let index = selected_lesson(id)?;
+                    vec![(index, check_lesson(index))]
+                }
+                None => check_all(&mut || false).into_iter().enumerate().collect(),
             };
             let mut passed = true;
-            for index in indices {
-                let report = check_lesson(index);
+            for (index, report) in reports {
                 ui.check_result(&LESSONS[index], &report);
-                passed &= report.state == CheckState::Passed;
+                passed &= report.passed();
             }
             Ok(if passed {
                 ExitCode::SUCCESS
@@ -840,25 +621,30 @@ fn execute(args: &[String]) -> Result<ExitCode, String> {
                 ExitCode::FAILURE
             })
         }
+        Some("reset") => {
+            let index = lesson_index(id.ok_or("Name the exercise to reset, e.g. reset 07.")?)
+                .ok_or_else(|| format!("Unknown lesson: {}.", id.unwrap_or_default()))?;
+            reset_exercise(index)?;
+            let mut state = LessonState::load(&root());
+            state.set_done(index, false);
+            state
+                .save(&root())
+                .map_err(|e| format!("Could not save your progress: {e}"))?;
+            println!("\n  The exercise {} has been reset.\n", LESSONS[index].file);
+            Ok(ExitCode::SUCCESS)
+        }
         Some("app") => {
-            let index = if id.is_some() {
-                selected_lesson(id)?
-            } else {
-                load_progress()
-            };
-            let checks = check_reached(index, &mut || false);
+            let index = selected_lesson(id)?;
+            let report = check_lesson(index);
             let status = Command::new("cargo")
                 .args(["run", "--manifest-path"])
                 .arg(manifest())
+                .env("GPUI_LINGS_LESSON", LESSONS[index].id)
                 .env(
-                    "GPUI_LINGS_LESSON",
-                    LESSONS.get(index).map_or("complete", |l| l.id),
+                    "GPUI_LINGS_COMPLETED",
+                    LessonState::load(&root()).completed().to_string(),
                 )
-                .env("GPUI_LINGS_COMPLETED", checks.completed().to_string())
-                .env(
-                    "GPUI_LINGS_STATUS",
-                    checks.reports.get(index).map_or("", Report::status),
-                )
+                .env("GPUI_LINGS_STATUS", report.status())
                 .status()
                 .map_err(|e| format!("Could not run cargo: {e}"))?;
             Ok(if status.success() {
@@ -867,7 +653,13 @@ fn execute(args: &[String]) -> Result<ExitCode, String> {
                 ExitCode::FAILURE
             })
         }
-        Some(other) => Err(format!("Unknown command: {other}. Use ./gpui-lings help.")),
+        // A development shortcut: jump straight to a lesson, e.g. ./gpui-lings 12.
+        Some(other) => match lesson_index(other) {
+            Some(index) => Ok(session::run(Some(index))),
+            None => Err(format!(
+                "Unknown command or lesson: {other}. Use ./gpui-lings help."
+            )),
+        },
     }
 }
 
@@ -885,49 +677,6 @@ fn main() -> ExitCode {
 mod tests {
     use super::*;
 
-    fn checks(states: &[CheckState]) -> SessionChecks {
-        SessionChecks {
-            reports: states
-                .iter()
-                .map(|state| Report {
-                    state: *state,
-                    summary: String::new(),
-                    details: String::new(),
-                    full_details: None,
-                })
-                .collect(),
-        }
-    }
-
-    #[test]
-    fn stashing_solutions_invalidates_saved_progress_and_returns_to_first_failure() {
-        use CheckState::{Failed, Passed};
-        let solved = checks(&[Passed; 7]);
-        assert_eq!(solved.completed(), 7);
-        assert_eq!(solved.resume_index(6), 6);
-        let stashed = checks(&[Failed; 7]);
-        assert_eq!(stashed.completed(), 0);
-        assert_eq!(stashed.resume_index(6), 0);
-        let earlier_regression = checks(&[Passed, Passed, Failed, Passed, Passed, Passed, Passed]);
-        assert_eq!(earlier_regression.completed(), 6);
-        assert_eq!(earlier_regression.resume_index(6), 2);
-        let current_failure = checks(&[Passed, Passed, Failed]);
-        assert_eq!(current_failure.completed(), 2);
-        assert_eq!(current_failure.resume_index(2), 2);
-        let complete = checks(&[Passed; LESSONS.len()]);
-        assert_eq!(complete.completed(), LESSONS.len());
-        assert_eq!(complete.resume_index(LESSONS.len()), LESSONS.len());
-        assert_eq!(stashed.resume_index(LESSONS.len()), 0);
-    }
-
-    #[test]
-    fn compilation_failure_clears_unverified_progress_without_navigating() {
-        use CheckState::{BuildError, Passed};
-        let checks = checks(&[Passed, Passed, Passed, BuildError, BuildError, BuildError]);
-        assert_eq!(checks.completed(), 3);
-        assert_eq!(checks.resume_index(5), 5);
-    }
-
     #[test]
     fn batch_results_are_attributed_to_the_exact_exercise() {
         let output = "running 3 tests\ntest lesson::one ... ok\ntest lesson::two ... FAILED\ntest lesson::three ... ignored\n\nfailures:\n\n---- lesson::two stdout ----\nexpected a gap\n\nfailures:\n    lesson::two\n";
@@ -937,7 +686,6 @@ mod tests {
         );
         let failed = native_report("lesson::two", output);
         assert_eq!(failed.state, CheckState::Failed);
-        assert_eq!(failed.full_details(), output);
         assert_eq!(
             failed.details.trim(),
             "test lesson::two ... FAILED\n\n---- lesson::two stdout ----\nexpected a gap"
@@ -1009,12 +757,15 @@ mod tests {
         };
         let old = app.child.as_ref().unwrap().id();
         let replacement = Command::new("sleep").arg("30").spawn().unwrap();
-        assert!(app.handoff(replacement, &ready, Duration::ZERO).is_err());
+        assert!(
+            app.handoff(replacement, &ready, Duration::ZERO, &mut || false)
+                .is_err()
+        );
         assert_eq!(app.child.as_ref().unwrap().id(), old);
         assert!(app.child.as_mut().unwrap().try_wait().unwrap().is_none());
         let replacement = Command::new("sh").args(["-c", "exit 1"]).spawn().unwrap();
         let error = app
-            .handoff(replacement, &ready, Duration::from_secs(2))
+            .handoff(replacement, &ready, Duration::from_secs(2), &mut || false)
             .unwrap_err();
         assert!(error.contains("exited before opening"));
         assert!(app.child.as_mut().unwrap().try_wait().unwrap().is_none());
@@ -1033,7 +784,7 @@ mod tests {
         let replacement = Command::new("sleep").arg("30").spawn().unwrap();
         let new = replacement.id();
         fs::write(&ready, "ready").unwrap();
-        app.handoff(replacement, &ready, Duration::from_secs(2))
+        app.handoff(replacement, &ready, Duration::from_secs(2), &mut || false)
             .unwrap();
         assert_eq!(app.child.as_ref().unwrap().id(), new);
         assert!(app.child.as_mut().unwrap().try_wait().unwrap().is_none());
@@ -1056,7 +807,7 @@ mod tests {
         let replacement = Command::new("sleep").arg("30").spawn().unwrap();
         fs::write(&ready, "ready").unwrap();
         assert_eq!(
-            app.handoff(replacement, &ready, Duration::from_secs(2))
+            app.handoff(replacement, &ready, Duration::from_secs(2), &mut || false)
                 .unwrap_err(),
             "Playground closed"
         );
@@ -1095,7 +846,7 @@ mod tests {
         let mut replacement = Command::new("sh").args(["-c", "exit 0"]).spawn().unwrap();
         replacement.wait().unwrap();
         fs::write(&ready, "ready").unwrap();
-        app.handoff(replacement, &ready, Duration::from_secs(2))
+        app.handoff(replacement, &ready, Duration::from_secs(2), &mut || false)
             .unwrap();
         assert!(app.has_exited());
         assert!(app.exit_status().unwrap().unwrap().success());
@@ -1178,16 +929,21 @@ mod tests {
     fn catalog_references_source_instructions_and_tests() {
         for (i, lesson) in LESSONS.iter().enumerate() {
             assert_eq!(lesson.id, format!("{:02}", i + 1));
-            assert!(lesson.instructions().contains(lesson.id));
-            assert!(!lesson.introduction().is_empty());
-            assert!(lesson.instructions().contains("Example —"));
+            let source = fs::read_to_string(root().join(lesson.file)).unwrap();
+            let instructions = lessons::instructions(&source);
+            assert!(instructions.contains(lesson.id));
+            assert!(instructions.contains("Example —"));
             assert_eq!(Path::new(lesson.file).file_stem().unwrap(), lesson.name);
             assert_eq!(selected_lesson(Some(lesson.name)).unwrap(), i);
-            let source = fs::read_to_string(root().join(lesson.file)).unwrap();
+            assert_eq!(lesson_index(&(i + 1).to_string()), Some(i));
+            assert_eq!(lesson_index(lesson.id), Some(i));
             assert!(source.contains(lesson.test.rsplit("::").next().unwrap()));
             assert!(lesson.hints.iter().all(|hint| !hint.is_empty()));
             assert!(!lesson.hints.is_empty());
         }
+        assert_eq!(lesson_index("0"), None);
+        assert_eq!(lesson_index(&(LESSONS.len() + 1).to_string()), None);
+        assert_eq!(lesson_index("list"), None);
     }
 
     #[test]

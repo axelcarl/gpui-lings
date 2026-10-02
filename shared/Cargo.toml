@@ -1,0 +1,10 @@
+[package]
+name = "gpui-lings-shared"
+version = "0.1.0"
+edition = "2024"
+
+# The lesson catalog and preview messages, used by both the guide and the
+# playground. Like the guide, it has no dependencies.
+
+[lib]
+path = "lib.rs"

@@ -1,16 +1,16 @@
+// Starter code leaves some callback arguments and placeholders unused until the
+// learner fills them in. Keep those warnings out of every lesson's check output.
+#[allow(unused)]
 pub mod exercises;
 mod icons;
-#[path = "../../shared/lessons.rs"]
-pub mod lessons;
+pub use gpui_lings_shared::lessons;
 mod preview;
-#[path = "../../shared/preview.rs"]
-mod preview_state;
 mod theme;
 
 use gpui_kit::prelude::*;
 use gpui_kit::*;
+use gpui_lings_shared::preview::{PreviewState, Refresh};
 use lessons::LESSONS;
-use preview_state::{PreviewState, Refresh};
 use std::{path::PathBuf, time::Duration};
 use theme::{MONO, Variant, alpha, badge, button, button_base, code, colors, icon};
 
@@ -39,17 +39,6 @@ impl Status {
             Self::Passed => Some(colors().success),
             Self::Failed | Self::Error => Some(colors().destructive),
             Self::Unchecked => None,
-        }
-    }
-}
-
-impl Refresh {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Current => "",
-            Self::Checking => "Preview outdated · checking…",
-            Self::Building => "Preview outdated · rebuilding…",
-            Self::Failed => "Preview outdated · refresh failed · see terminal",
         }
     }
 }

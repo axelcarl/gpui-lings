@@ -2,8 +2,8 @@
 //!
 //! A detail window can share an Entity with the main view. Both windows
 //! observe that model, so a change from either redraws the other. GPUI Kit's
-//! open_window creates the second window. Observe its closure and clear the
-//! stored handle so Open can work again.
+//! open_window creates the second window. Observe when it closes, and clear
+//! the stored handle so Open can work again.
 //!
 //! Goal: open detail, update the count from either window, close detail, and
 //! open it again. Retain the on_window_closed Subscription until it closes.
@@ -24,13 +24,17 @@ use gpui_kit::{
     div, prelude::*,
 };
 
+// The shared model. It isn't a view: it has no `render`. Both windows hold an
+// `Entity<CountModel>` handle to this one value.
 #[derive(Default)]
 pub struct CountModel {
     value: u32,
 }
 
+// The root view of the detail window.
 pub struct DetailPanel {
     model: Entity<CountModel>,
+    // Re-renders this view whenever the model notifies.
     _observer: Subscription,
 }
 impl DetailPanel {
@@ -63,6 +67,7 @@ impl Render for DetailPanel {
             .child(
                 button("detail-close", "Close detail", false)
                     .debug_selector(|| "detail-close".into())
+                    // Closes the window this button is in: the detail window.
                     .on_click(|_, window, _| window.remove_window()),
             )
             .child(
@@ -73,10 +78,13 @@ impl Render for DetailPanel {
     }
 }
 
+// The main window's view.
 pub struct WindowsPanel {
     model: Entity<CountModel>,
+    // The open detail window, if any. Open does nothing while it is Some.
     detail: Option<AnyWindowHandle>,
     _model_observer: Subscription,
+    // Keeps the close callback from `open` registered while detail is open.
     _close_subscription: Option<Subscription>,
 }
 impl WindowsPanel {
@@ -95,23 +103,34 @@ impl WindowsPanel {
         if self.detail.is_some() {
             return;
         }
+        // A second handle to the same model, moved into the detail view.
         let model = self.model.clone();
+        // Opens the window and returns its handle and its root view.
         let (handle, _) = gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
             cx.new(|cx| DetailPanel::new(model, cx))
         })
         .expect("could not open detail window");
         self.detail = Some(handle);
+        // This panel will own the callback's subscription, so the callback
+        // holds only a weak handle: a strong one would keep the panel alive.
         let weak = cx.weak_entity();
+        // `on_window_closed` runs this callback whenever any window of the app
+        // closes, with the app and the closed window's id. It returns a
+        // Subscription, and dropping that unregisters the callback.
         let subscription = cx.on_window_closed(move |cx, closed| {
             if closed == handle.window_id() {
                 let _ = weak.update(cx, |this, cx| {
+                    // Forget the closed window so Open works again, and drop
+                    // the subscription: it was only needed for this window.
                     this.detail = None;
                     this._close_subscription.take();
                     cx.notify();
                 });
             }
         });
-        let _ = subscription;
+        // TODO: `subscription` is dropped when `open` returns, which removes
+        // the callback before the detail window can close. Store it in
+        // `self._close_subscription`, so the panel hears about the close.
         cx.notify();
     }
 }
@@ -161,6 +180,8 @@ impl Render for WindowsPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,6 +224,12 @@ mod tests {
         });
         assert!(cx.debug_bounds("windows-detail-closed").is_some());
         cx.simulate_click(open.center(), Modifiers::default());
-        cx.update(|_, cx| assert_eq!(cx.windows().len(), starting_windows + 1));
+        cx.update(|_, cx| {
+            assert_eq!(
+                cx.windows().len(),
+                starting_windows + 1,
+                "Open detail should work again after closing detail"
+            )
+        });
     }
 }

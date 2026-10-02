@@ -26,14 +26,22 @@ use gpui_kit::{Context, IntoElement, Render, Window, div, prelude::*};
 
 #[derive(Default)]
 pub struct DeferredPanel {
+    // Every step recorded so far, in order. The label shows the latest one.
     history: Vec<&'static str>,
 }
 
 impl DeferredPanel {
-    // TODO: After recording Queued, record Settled in a deferred update.
+    // The Queue listener calls this while GPUI is updating this view, so the
+    // view stays borrowed until `queue` returns. Updating it again through its
+    // handle before then would panic.
     fn queue(&mut self, cx: &mut Context<Self>) {
         self.history.push("Queued");
         cx.notify();
+        // TODO: Nothing records "Settled" yet. Schedule that second step with
+        // `cx.defer`, which runs a closure once the current update has ended.
+        // The closure gets only `&mut App`, not this view, so capture
+        // `cx.weak_entity()` before the call and `update` the view through it.
+        // Notify after the change.
     }
 }
 
@@ -62,6 +70,8 @@ impl Render for DeferredPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

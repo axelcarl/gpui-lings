@@ -8,6 +8,6 @@ The app supplies the GPUI wiring so these first edits stay small.
 - [03 · Milestone](../../exercises/01_basics/basics3.rs): derive the interface from a single source of truth.
 
 The task, expected behavior, and checks live in each Rust file. Save to check;
-use `h` for a hint and `n` to continue. `g` reads the same source instructions.
+press `h` for a hint and `n` to continue once the check passes.
 
 Reference: [GPUI introduction](https://github.com/zed-industries/zed/blob/main/crates/gpui/README.md).

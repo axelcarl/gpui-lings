@@ -194,3 +194,49 @@ The 38-lesson verifier, guide tests, app checks, formatting, and Clippy on a
 fully solved copy pass. Strict Clippy on the starter reports only the earlier
 `let_unit_value` finding in `playground/src/preview.rs`. None of the rewritten
 checkpoints has had a native visual pass or a learner playtest.
+
+## Playtest feedback, Rustlings controls, and editor support — October 2, 2026
+
+A playtest of lessons 01–19 led to these changes:
+
+- **Controls.** The guide now uses Rustlings' watch-mode keys, acting on each
+  key press without Enter: `n` next, `h` hint, `l` list, `c` check all, `x`
+  reset, `q` quit. The list view supports navigation, continue at, reset,
+  search, and done/pending filters. Reset runs `git stash push -- <file>`, as
+  Rustlings does for exercises it doesn't embed. The screen is aligned to the
+  bottom of the terminal. As in Rustlings, saving checks only the current
+  exercise, and `c` rechecks everything. `./gpui-lings <lesson>` starts a session
+  at any lesson.
+- **Diagnostics.** A failed check leads with the assertion's message and shows
+  the whole (possibly multi-line) assertion and its compared values.
+- **Lessons.** Lessons 01–37 explain their code in Rustlings-style comments,
+  and TODOs sit at the line to change. This reverses the marker fading of
+  chapters 06–10, because the playtest found context missing. Starters no longer
+  need a line deleted as part of the fix (`drop(subscription)` in 11,
+  `drop(task)` in 15, similar placeholders in 25 and 29–32), and parameters the
+  learner must use lost their `_` prefix. Lesson 14 starts from `self.target`
+  instead of a hard-coded `None`. Lesson 17 also has the learner attach the
+  ScrollHandle (Jump to last), so it is more than an overflow swap. Lesson 18's
+  explanation and example are now about keeping a disabled control inert.
+  Lessons 12 and 13 show whether focus is where keys will arrive, because every
+  save opens a fresh window with nothing focused.
+- **Quizzes.** Checkpoints 20, 24, 28 and 38 moved to `exercises/quizzes/quiz1–4.rs`.
+  Saved progress that uses their old names migrates.
+- **Editor support.** The playground's manifest moved to the repository root,
+  with the guide in `guide/` and the shared catalog in `shared/` as a crate.
+  rust-analyzer now resolves every exercise module: its diagnostics run reports
+  no errors, compared with dozens of unresolved-module errors before.
+
+The playtest also reported that Ctrl-K (lesson 12) and X (lesson 13) didn't
+reach the preview. With the reference fixes applied, a real click and key press
+reach the handlers in a native window, including one that starts inactive and
+one launched with the guide's environment. A window launched by the guide often
+doesn't become the active app, and each rebuild replaces it with nothing
+focused. Until the learner clicks it, keys go to the previously active app. The
+previews now show the focus state, and the lessons explain this.
+
+Verified: guide and shared tests (34), app tests (13), the 38-lesson
+starter/reference verifier, formatting, and Clippy with `-D warnings` on all
+three packages. Lesson 30's preview looks correct even in its starter state,
+because the control's notify redraws the whole window; only the hidden `updates`
+counter shows the bug. Showing that counter would make the fault visible.

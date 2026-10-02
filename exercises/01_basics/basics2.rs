@@ -17,11 +17,19 @@
 //! })
 //! ```
 
+// The playground's button calls this from its click listener:
+//     increment(&mut this.count);
+//     cx.notify(); // Ask GPUI to render the playground again.
+// `count` is a mutable reference to the playground's own field, so assigning
+// through `*count` changes the number on screen.
 pub fn increment(count: &mut u32) {
-    // TODO: Move the count forward by one on every click.
+    // TODO: `saturating_sub(1)` subtracts one (stopping at zero). Make every
+    // click add one instead.
     *count = count.saturating_sub(1);
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

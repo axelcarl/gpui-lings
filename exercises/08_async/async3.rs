@@ -24,20 +24,32 @@ use std::time::Duration;
 
 #[derive(Default)]
 pub struct StalePanel {
+    // The user's latest choice. It changes as soon as a button is clicked.
     selected: Option<&'static str>,
+    // The result on screen. `None` shows Loading.
     visible: Option<&'static str>,
+    // Every request's task. None is cancelled, so an older request can still
+    // finish after a newer one.
     tasks: Vec<Task<()>>,
 }
 
 impl StalePanel {
-    // TODO: An older, slower selection must not replace a newer one.
+    // Slow answers after two seconds and Fast after one, so clicking Slow and
+    // then Fast makes the older request finish last.
     fn select(&mut self, label: &'static str, delay: Duration, cx: &mut Context<Self>) {
         self.selected = Some(label);
         self.visible = None;
         cx.notify();
+        // `label` moves into the task, so each completion knows which choice
+        // started it.
         self.tasks.push(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(delay).await;
+            // `this` is a weak handle, so a pending request doesn't keep the
+            // panel alive. Releasing the panel drops its tasks, cancelling them.
             let _ = this.update(cx, |this, cx| {
+                // TODO: Every completion overwrites `visible`, so Slow, finishing
+                // last, replaces Fast. Show `label` only while it still matches
+                // `this.selected`.
                 this.visible = Some(label);
                 cx.notify();
             });
@@ -74,6 +86,8 @@ impl Render for StalePanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

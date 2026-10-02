@@ -4,6 +4,21 @@ use std::{collections::BTreeSet, fs, io, path::Path};
 
 const HEADER: &str = "# GPUI Lings state — managed by the guide";
 
+/// Lessons that were renamed, so saved progress keeps finding them.
+const RENAMED: [(&str, &str); 4] = [
+    ("responsive5", "quiz1"),
+    ("deeper4", "quiz2"),
+    ("async4", "quiz3"),
+    ("quality5", "quiz4"),
+];
+
+fn current_name(name: &str) -> &str {
+    RENAMED
+        .iter()
+        .find(|(old, _)| *old == name)
+        .map_or(name, |(_, new)| new)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LessonState {
     pub current: usize,
@@ -33,11 +48,12 @@ impl LessonState {
         if lines.next() != Some(HEADER) || lines.next() != Some("") {
             return Self::legacy("");
         }
-        let current = lines.next().unwrap_or_default();
+        let current = current_name(lines.next().unwrap_or_default());
         if lines.next() != Some("") {
             return Self::legacy("");
         }
         let done = lines
+            .map(current_name)
             .filter(|name| LESSONS.iter().any(|lesson| lesson.name == *name))
             .map(str::to_owned)
             .collect();
@@ -90,14 +106,6 @@ impl LessonState {
         self.done.len()
     }
 
-    pub fn reached(&self) -> usize {
-        LESSONS
-            .iter()
-            .rposition(|l| self.is_done(l.name))
-            .unwrap_or(0)
-            .max(self.current)
-    }
-
     pub fn next_pending(&self) -> usize {
         ((self.current + 1).min(LESSONS.len())..LESSONS.len())
             .chain(0..self.current.min(LESSONS.len()))
@@ -119,7 +127,6 @@ mod tests {
         assert_eq!(LessonState::parse(&state.encode()), state);
         state.current = 0;
         assert_eq!(state.completed(), 2);
-        assert_eq!(state.reached(), 3);
         assert_eq!(state.next_pending(), 1);
         state.current = 2;
         assert_eq!(state.next_pending(), 4);
@@ -148,6 +155,10 @@ mod tests {
         assert_eq!(state.current, 7);
         assert_eq!(state.completed(), 1);
         assert_eq!(LessonState::parse("truncated").completed(), 0);
+        let text = format!("{HEADER}\n\nresponsive5\n\ndeeper4\n");
+        let state = LessonState::parse(&text);
+        assert_eq!(LESSONS[state.current].name, "quiz1");
+        assert!(state.is_done("quiz2"));
     }
 
     #[test]

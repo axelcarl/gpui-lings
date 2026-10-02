@@ -19,15 +19,23 @@
 use crate::theme::colors;
 use gpui_kit::{IntoElement, div, prelude::*, px};
 
+// `div()` is GPUI's general-purpose container. Style methods such as
+// `.flex()`, `.gap_3()` and `.size(...)` work like Tailwind classes, and
+// `.child(...)` adds what goes inside. `impl IntoElement` means "something GPUI
+// can render": here, the whole tree this function builds.
 pub fn progress_strip() -> impl IntoElement {
-    let c = colors();
+    let c = colors(); // The playground's light or dark palette.
     div()
+        // Lay out the children with flexbox: the parent decides where they go.
         .flex()
-        // TODO: Choose the flex direction that puts the steps on one row.
+        // TODO: `flex_col()` stacks the children from top to bottom. Choose the
+        // direction that places them side by side, from left to right.
         .flex_col()
         .gap_3()
         .child(
             div()
+                // `debug_selector` names an element so the check can find and
+                // measure it. It changes nothing on screen; leave it in place.
                 .debug_selector(|| "step-one".into())
                 .size(px(64.0))
                 .flex()
@@ -53,6 +61,8 @@ pub fn progress_strip() -> impl IntoElement {
         )
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

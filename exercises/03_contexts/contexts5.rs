@@ -34,6 +34,7 @@ pub struct Signal(pub usize);
 pub struct Sender {
     sent: usize,
 }
+// Declares that Sender emits Signal events, which allows `cx.emit(Signal(..))`.
 impl EventEmitter<Signal> for Sender {}
 impl Render for Sender {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -55,15 +56,17 @@ pub struct EventsPanel {
 impl EventsPanel {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let sender = cx.new(|_| Sender::default());
+        // `subscribe` connects this panel to the sender's Signal events and
+        // returns a Subscription. The connection lasts as long as that value.
         let subscription = cx.subscribe(&sender, |this, _, signal: &Signal, cx| {
             this.received = signal.0;
             cx.notify();
         });
-        // TODO: Keep this connection alive in the panel.
-        drop(subscription);
         Self {
             sender,
             received: 0,
+            // TODO: With `None`, `subscription` is dropped when `new` returns,
+            // which disconnects the callback. Keep it in the panel instead.
             _subscription: None,
         }
     }
@@ -84,6 +87,8 @@ impl Render for EventsPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

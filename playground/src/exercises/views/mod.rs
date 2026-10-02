@@ -4,7 +4,7 @@
 pub mod drag;
 #[path = "../../../../exercises/02_views/views2.rs"]
 pub mod entity;
-#[path = "../../../../exercises/06_responsive/responsive5.rs"]
+#[path = "../../../../exercises/quizzes/quiz1.rs"]
 pub mod inspector;
 #[path = "../../../../exercises/02_views/views1.rs"]
 pub mod layout;

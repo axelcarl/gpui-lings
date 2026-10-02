@@ -1,21 +1,26 @@
-//! 18 — Show the state of a control
+//! 18 — Keep a disabled control disabled
 //!
-//! A control should reveal whether it is hovered, focused, selected, or
-//! disabled. GPUI's hover and focus-visible styles handle transient input
-//! states; selected and disabled belong to the view's persistent state.
+//! Looking disabled is not the same as being disabled. While disabled, this
+//! control already dims itself, drops its hover style and leaves the Tab order
+//! (opacity, when(!disabled, hover), tab_index(-1)). Its handlers still run,
+//! though: a click still arrives, and code can still focus the control and
+//! send it Enter. Styling only tells the user; the view's state must decide.
 //!
-//! Goal: clicking or pressing Enter toggles selection while enabled, but does
-//! nothing while disabled. The styles and status labels are already present.
-//! Fix toggle_selection so disabled state also governs the action. Try the
-//! control with mouse, Tab, and Enter in both light and dark appearance.
+//! Goal: clicking or pressing Enter toggles selection while enabled, and does
+//! nothing while disabled. The click and key handlers both call
+//! toggle_selection, so one guard there covers every input. Try the control
+//! with the mouse, Tab and Enter, then disable it and try again.
 //!
-//! Example — Styling an interactive control:
+//! Example — Guarding an action where every input path meets:
 //! (Illustrative names and fields; adapt them to the view below.)
 //! ```ignore
-//! div().id("choice").tab_index(0)
-//!     .hover(|style| style.bg(colors().accent))
-//!     .focus_visible(crate::theme::focus_ring)
-//!     .child("Choose")
+//! fn submit(&mut self, cx: &mut Context<Self>) {
+//!     if self.busy {
+//!         return; // Ignore clicks and shortcuts alike while busy.
+//!     }
+//!     self.submitted += 1;
+//!     cx.notify();
+//! }
 //! ```
 
 use crate::theme::{button, colors, focus_ring};
@@ -38,7 +43,8 @@ impl StatesPanel {
         }
     }
 
-    // TODO: A disabled control must ignore activation from every input.
+    // Both the click handler and the Enter/Space handler below call this.
+    // TODO: While `self.disabled` is true, leave the selection unchanged.
     fn toggle_selection(&mut self, cx: &mut Context<Self>) {
         self.selected = !self.selected;
         cx.notify();
@@ -75,6 +81,8 @@ impl Render for StatesPanel {
                     } else {
                         c.foreground
                     })
+                    // How the control *looks* in each state. None of this stops
+                    // the handlers below from running.
                     .when(!self.disabled, |el| el.hover(|style| style.bg(c.accent)))
                     .focus_visible(focus_ring)
                     .when(self.disabled, |el| el.opacity(0.45))
@@ -84,6 +92,7 @@ impl Render for StatesPanel {
                             cx.notify();
                         }
                     }))
+                    // Two ways to activate the control: the mouse and the keyboard.
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_selection(cx)))
                     .on_key_down(cx.listener(|this, event: &gpui_kit::KeyDownEvent, _, cx| {
                         if event.keystroke.key == "enter" || event.keystroke.key == "space" {
@@ -135,6 +144,8 @@ impl Render for StatesPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

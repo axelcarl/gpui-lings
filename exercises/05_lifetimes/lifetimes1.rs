@@ -25,7 +25,9 @@ use gpui_kit::{Context, Entity, IntoElement, Render, WeakEntity, Window, div, pr
 
 pub struct Record;
 pub struct WeakPanel {
+    // The strong handle that keeps the record alive. Release target drops it.
     owner: Option<Entity<Record>>,
+    // A weak handle to the same record: it does not keep the record alive.
     pub target: WeakEntity<Record>,
     status: &'static str,
 }
@@ -39,9 +41,12 @@ impl WeakPanel {
         }
     }
     fn inspect(&mut self, cx: &mut Context<Self>) {
-        // TODO: Upgrade self.target instead of assuming it is gone.
-        let target: Option<Entity<Record>> = None;
-        self.status = if target.is_some() {
+        // TODO: A weak handle exists even after its record is released, so
+        // wrapping it in `Some` proves nothing. Call `upgrade()` on
+        // `self.target` instead: it returns `Some(Entity<Record>)` while an
+        // owner still holds the record, and `None` once it has been released.
+        let record = Some(&self.target);
+        self.status = if record.is_some() {
             "Available"
         } else {
             "Released"
@@ -78,6 +83,8 @@ impl Render for WeakPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,7 +115,11 @@ mod tests {
             cx.simulate_click(inspect.center(), Modifiers::default());
         }
         cx.update(|window, cx| {
-            assert_eq!(panel.read(cx).status, "Released");
+            assert_eq!(
+                panel.read(cx).status,
+                "Released",
+                "after Release target, inspecting must report Released"
+            );
             window.draw(cx).clear(cx);
         });
         assert!(cx.debug_bounds("weak-Released").is_some());

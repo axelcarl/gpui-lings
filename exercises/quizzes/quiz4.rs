@@ -1,4 +1,7 @@
-//! 38 — Capstone: small native workspace
+//! 38 — Quiz 4 (capstone): small native workspace
+//!
+//! This is a quiz for the whole course. Its five bugs come from the chapters
+//! on contexts, lifetimes & async, responsive views, async data and focus.
 //!
 //! This two-pane notes workspace brings earlier chapters together. Separate
 //! entities render the list and detail from one observed model. The panes

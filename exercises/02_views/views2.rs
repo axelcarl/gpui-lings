@@ -19,6 +19,8 @@
 use crate::theme::{badge, button, colors};
 use gpui_kit::{Context, IntoElement, Render, Window, div, prelude::*, px};
 
+// A view is a struct that implements `Render`. GPUI keeps it in an entity and
+// calls `render` whenever it needs the view's element tree.
 #[derive(Default)]
 pub struct TogglePanel {
     active: bool,
@@ -54,12 +56,16 @@ impl Render for TogglePanel {
                 )
                 .debug_selector(|| "toggle-button".into())
                 .w(px(190.0))
+                // `cx.listener` runs this closure on every click, with this
+                // entity's state (`this`) and its context (`cx`).
                 .on_click(cx.listener(|this, _, _, cx| {
-                    // TODO: Toggle this entity's state on every click.
+                    // TODO: This always switches the signal off. Flip `active`
+                    // instead, so clicks alternate between showing and hiding it.
                     this.active = false;
-                    cx.notify();
+                    cx.notify(); // Ask GPUI to render this entity again.
                 })),
             )
+            // `when` adds the badge only while `active` is true.
             .when(self.active, |this| {
                 this.child(
                     badge(false)
@@ -73,6 +79,8 @@ impl Render for TogglePanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

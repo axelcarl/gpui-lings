@@ -1,4 +1,9 @@
-//! 28 — Async checkpoint: searchable results
+//! 28 — Quiz 3: searchable results
+//!
+//! This is a quiz for the following lessons:
+//! - 09 Entities & updates
+//! - 14–15 Lifetimes & async
+//! - 25–27 Async data & failure paths
 //!
 //! This preview combines a native text input, background work, visible
 //! loading/error states, retry, and keyboard selection. GPUI Base's unstyled

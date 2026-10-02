@@ -3,12 +3,17 @@
 //! A reusable control should take its value, disabled state, label, and change
 //! handler as inputs. The parent view owns each value. GPUI Base's Switch
 //! handles accessible interaction, while this small wrapper applies the course
-//! theme and passes changes back to the owner. Two child views use it, plus a
-//! disabled example.
+//! theme and passes changes back to the owner. Three child views use it: two
+//! live switches and a disabled example.
 //!
-//! Goal: both live switches update independently. The starter wrapper ignores
-//! its checked input, so a redraw loses the visible checked state. Pass that
-//! input through while keeping the disabled example inert.
+//! Switch is a controlled component: it keeps no value of its own. Each render
+//! tells it the current value with checked(...), and when the user activates
+//! it, on_change receives the opposite of that value for the owner to store.
+//!
+//! Goal: both live switches turn on and off independently. The starter wrapper
+//! draws its colors and text from its checked input, but gives the Switch a
+//! constant value, so every click asks for "on" again. Pass that input through
+//! while keeping the disabled example inert.
 //!
 //! Example — Passing controlled state back to its owner:
 //! (Illustrative names and fields; adapt them to the view below.)
@@ -30,7 +35,9 @@ use gpui_kit::{
     App, ClickEvent, Context, Entity, IntoElement, Render, Window, div, prelude::*, px,
 };
 
-// TODO: The switch must show the checked value it receives.
+// A themed switch that any view can reuse. It holds no state: the caller passes
+// every input on each render, and gets the next value back through
+// `on_change`, with the click event, the window and the app.
 fn setting_switch(
     id: &'static str,
     label: &'static str,
@@ -40,10 +47,16 @@ fn setting_switch(
 ) -> Switch {
     let c = colors();
     Switch::new(id)
+        // TODO: The Switch is always told it is off, so it announces Off and
+        // every click reports `true` ("on") again. Give it the value this
+        // wrapper receives in `checked` instead.
         .checked(false)
+        // While disabled, the Switch ignores clicks and keys and can't be focused.
         .disabled(disabled)
+        // The name a screen reader announces (lesson 34).
         .accessibility_label(label)
         .on_change(on_change)
+        // The course theme. The colors and text already follow `checked`.
         .w(px(220.0))
         .h(px(44.0))
         .flex()
@@ -59,6 +72,8 @@ fn setting_switch(
         .child(format!("{label}: {}", if checked { "On" } else { "Off" }))
 }
 
+// One setting in its own view. Each tile owns its value, so the tiles change
+// independently even though they share `setting_switch`.
 pub struct SettingTile {
     id: &'static str,
     label: &'static str,
@@ -68,6 +83,8 @@ pub struct SettingTile {
 
 impl Render for SettingTile {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The switch's callback isn't tied to this view, so it reaches the tile
+        // through a weak handle.
         let weak = cx.weak_entity();
         let id = self.id;
         div()
@@ -79,6 +96,8 @@ impl Render for SettingTile {
                 self.checked,
                 self.disabled,
                 move |next, _, _, cx| {
+                    // Store the requested value. The next render passes it back
+                    // into `setting_switch`.
                     let _ = weak.update(cx, |this, cx| {
                         this.checked = next;
                         cx.notify();
@@ -124,6 +143,8 @@ impl Render for ReusablePanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,22 +159,40 @@ mod tests {
         let locked = window.debug_bounds("setting-locked").unwrap();
         window.simulate_click(first.center(), Modifiers::default());
         window.update(|window, cx| {
-            assert!(panel.read(cx).first.read(cx).checked);
-            assert!(!panel.read(cx).second.read(cx).checked);
+            assert!(
+                panel.read(cx).first.read(cx).checked,
+                "clicking Sounds should turn it on"
+            );
+            assert!(
+                !panel.read(cx).second.read(cx).checked,
+                "Alerts should stay off: each tile owns its own value"
+            );
             window.draw(cx).clear(cx);
         });
         // GPUI Base's controlled switch must reflect the value on the next click.
         window.simulate_click(first.center(), Modifiers::default());
         window.update(|window, cx| {
-            assert!(!panel.read(cx).first.read(cx).checked);
+            assert!(
+                !panel.read(cx).first.read(cx).checked,
+                "a second click should turn Sounds off again"
+            );
             window.draw(cx).clear(cx);
         });
         window.simulate_click(second.center(), Modifiers::default());
         window.simulate_click(locked.center(), Modifiers::default());
         window.update(|window, cx| {
-            assert!(!panel.read(cx).first.read(cx).checked);
-            assert!(panel.read(cx).second.read(cx).checked);
-            assert!(!panel.read(cx).locked.read(cx).checked);
+            assert!(
+                !panel.read(cx).first.read(cx).checked,
+                "Sounds should stay off"
+            );
+            assert!(
+                panel.read(cx).second.read(cx).checked,
+                "clicking Alerts should turn it on"
+            );
+            assert!(
+                !panel.read(cx).locked.read(cx).checked,
+                "the disabled Managed switch must ignore clicks"
+            );
             window.draw(cx).clear(cx);
         });
     }

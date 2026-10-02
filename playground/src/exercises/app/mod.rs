@@ -5,7 +5,7 @@ pub mod accessibility;
 pub mod appearance;
 #[path = "../../../../exercises/10_quality/quality2.rs"]
 pub mod behavior_test;
-#[path = "../../../../exercises/10_quality/quality5.rs"]
+#[path = "../../../../exercises/quizzes/quiz4.rs"]
 pub mod capstone;
 #[path = "../../../../exercises/10_quality/quality3.rs"]
 pub mod large_list;

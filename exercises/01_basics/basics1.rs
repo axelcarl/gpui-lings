@@ -15,11 +15,16 @@
 //! let card = div().child(heading);
 //! ```
 
+// The playground calls this function every time it renders its headline:
+//     div().child(welcome_text())
+// A `&'static str` is text that is stored in the program itself.
 pub fn welcome_text() -> &'static str {
-    // TODO: The playground should greet the framework you are learning.
+    // TODO: Greet the framework you are learning: return "Hello, GPUI!".
     "Hello, Rust!"
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

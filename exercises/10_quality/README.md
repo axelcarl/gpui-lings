@@ -1,4 +1,4 @@
-# Ship-quality GPUI · 34–38
+# Ship-quality GPUI · 34–37, then quiz 4
 
 [34 · Expose an accessible control](../../exercises/10_quality/quality1.rs)
 uses GPUI Base's unstyled Switch. It supplies the Switch role, toggled state,
@@ -28,7 +28,7 @@ disabled behavior, and theme colors. Separate child views own separate values.
 The check turns one on and off, toggles the other, and verifies that the
 disabled instance never changes.
 
-[38 · Capstone: small native workspace](../../exercises/10_quality/quality5.rs)
+[38 · Quiz 4 (capstone): small native workspace](../../exercises/quizzes/quiz4.rs)
 combines observed model entities, a responsive list and detail, a scoped Save
 action, focus, simulated async loading and retry, temporary persistence, and
 an accessible Save name. Five bugs are reported as symptoms instead of marked

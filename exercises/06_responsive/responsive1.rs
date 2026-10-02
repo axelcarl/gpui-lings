@@ -24,12 +24,14 @@ pub struct ResponsivePanel;
 
 impl Render for ResponsivePanel {
     fn render(&mut self, window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        // The window's current size. GPUI renders again after every resize, so
+        // this choice is made fresh each frame.
         let narrow = window.bounds().size.width < px(760.0);
         responsive_cards(narrow)
     }
 }
 
-// TODO: Stack the cards when the window is narrow.
+// Builds the same two cards either way; only the parent's direction differs.
 fn responsive_cards(narrow: bool) -> impl IntoElement {
     let c = colors();
     let cards = div().flex().gap(px(16.0)).children((0..2).map(|index| {
@@ -47,6 +49,8 @@ fn responsive_cards(narrow: bool) -> impl IntoElement {
             .child(format!("Panel {}", index + 1))
     }));
 
+    // TODO: The narrow branch uses `flex_row()` too, so the cards never stack.
+    // Give it the flex direction that places them one above the other.
     if narrow {
         cards.gap(px(8.0)).flex_row()
     } else {
@@ -54,6 +58,8 @@ fn responsive_cards(narrow: bool) -> impl IntoElement {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

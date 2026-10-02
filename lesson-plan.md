@@ -29,7 +29,7 @@ The course already revisits its core patterns at increasing distances. That is s
 
 The research supports spaced revisits, retrieval without cues, and withdrawing guidance as skill grows. It does not support a fixed "two steps forward, one step back" difficulty curve. These rules change existing lessons in place, so IDs and saved progress stay valid:
 
-1. **Fade markers by chapter.** Chapters 01–05 keep a TODO at the line to change. From chapter 06, a new concept's TODO names the behavior or function, not the line. Checkpoints have no inline markers.
+1. **Fade markers by chapter.** Chapters 01–05 keep a TODO at the line to change. From chapter 06, a new concept's TODO names the behavior or function, not the line. Checkpoints have no inline markers. *(October 2, 2026: a playtest found context missing, so every lesson now marks the line to change and explains its code, as Rustlings does. Quizzes keep no markers. See [QUALITY.md](QUALITY.md).)*
 2. **Report symptoms.** A checkpoint header lists what a tester would observe. Its check asserts each symptom, and the assertion message describes the symptom, not the fix.
 3. **Mix distances.** A checkpoint has three to five faults from different earlier lessons, at least one from two or more chapters back.
 4. **Vary the surface.** A revisited fault must not repeat its first lesson's token. Lesson 15's `drop(task)` becomes `let _task = cx.spawn(…)` beside a `_task` field in 38, so recognition alone does not solve it.

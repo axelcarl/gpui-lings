@@ -6,7 +6,7 @@ view. The playground preview lets you open the second window without leaving
 the course. You can also run the isolated example:
 
 ```sh
-cargo run --manifest-path playground/Cargo.toml --example lesson29
+cargo run --example lesson29
 ```
 
 The starter example opens no window until you complete `open_workspace`. The

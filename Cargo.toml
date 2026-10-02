@@ -1,11 +1,39 @@
+# The native playground. Its sources live in playground/, but its manifest sits
+# at the repository root so that exercises/ is inside the crate's directory:
+# rust-analyzer then resolves every exercise module, and editors show errors,
+# types on hover and completions while you work on an exercise.
 [package]
-name = "gpui-lings"
+name = "gpui-lings-playground"
 version = "0.1.0"
 edition = "2024"
+autobins = false
+autoexamples = false
+autotests = false
+autobenches = false
 
-# The guide intentionally has no GPUI dependency. It can list lessons and hints
-# even before the much larger native playground has been built.
+[lib]
+path = "playground/src/lib.rs"
 
 [[bin]]
-name = "gpui-lings"
-path = "src/main.rs"
+name = "gpui-lings-playground"
+path = "playground/src/main.rs"
+
+[[example]]
+name = "lesson29"
+path = "playground/examples/lesson29.rs"
+
+[dependencies]
+# Kit pins a compatible Zed GPUI snapshot. The course starts with GPUI APIs;
+# later lessons use Base controls and a virtual list through Kit's facade.
+gpui-kit = { version = "=0.7.0", default-features = false }
+gpui-lings-shared = { path = "shared" }
+
+[dev-dependencies]
+# Headless view tests need GPUI's test-support feature. Keep the version aligned
+# with the snapshot pinned by gpui-kit 0.7.0.
+gpui = { package = "gpui-pre", version = "=0.3.7", features = ["test-support"] }
+
+[workspace]
+# The guide (./gpui-lings) builds without GPUI: `cargo run -p gpui-lings`.
+members = ["guide", "shared"]
+resolver = "3"

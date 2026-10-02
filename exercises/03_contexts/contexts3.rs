@@ -22,6 +22,8 @@
 use crate::theme::button;
 use gpui_kit::{Context, Entity, IntoElement, Render, Window, div, prelude::*};
 
+// A child view. Deriving Clone lets you copy its *value*, separate from the
+// entity GPUI owns: that copy is the trap in this exercise.
 #[derive(Clone, Default)]
 pub struct Score {
     value: usize,
@@ -35,6 +37,8 @@ impl Render for Score {
 }
 
 pub struct UpdatePanel {
+    // A handle to the Score entity. Cloning the handle, as render does below,
+    // still refers to the same score.
     score: Entity<Score>,
 }
 impl UpdatePanel {
@@ -56,15 +60,20 @@ impl Render for UpdatePanel {
                 button("update-child", "Increment child", true)
                     .debug_selector(|| "update-child".into())
                     .on_click(cx.listener(|this, _, _, cx| {
-                        // TODO: Update the stored entity and notify its context.
+                        // `read` borrows the score; `clone` then copies its value.
+                        // TODO: This increments the copy and throws it away, so the
+                        // score on screen never changes. Change the entity itself:
+                        // `this.score.update(cx, |score, cx| ...)` gives you the
+                        // score and its context. Notify that context afterwards.
                         let mut detached = this.score.read(cx).clone();
                         detached.value += 1;
-                        let _ = detached.value;
                     })),
             )
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

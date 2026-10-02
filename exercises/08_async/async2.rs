@@ -24,6 +24,7 @@ use crate::theme::button;
 use gpui_kit::{Context, IntoElement, Render, Task, Window, div, prelude::*};
 use std::{collections::VecDeque, time::Duration};
 
+// Everything the panel can show. Render turns the current state into its label.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum LoadState {
     Idle,
@@ -33,13 +34,16 @@ enum LoadState {
 }
 
 pub struct RetryPanel {
+    // Canned answers that stand in for a server: each request takes the next.
     responses: VecDeque<Result<&'static str, &'static str>>,
     state: LoadState,
+    // The request in flight. Storing a new one drops, and so cancels, the old.
     task: Option<Task<()>>,
 }
 
 impl Default for RetryPanel {
     fn default() -> Self {
+        // The first request fails with "Offline"; the second succeeds.
         Self::new([Err("Offline"), Ok("Latest report")])
     }
 }
@@ -53,10 +57,15 @@ impl RetryPanel {
         }
     }
 
+    // Sends a request. It only changes `state` when the answer arrives, a
+    // second later; until then, whatever was on screen stays there.
     fn request(&mut self, cx: &mut Context<Self>) {
         let response = self.responses.pop_front().unwrap_or(Err("No response"));
         self.task = Some(cx.spawn(async move |this, cx| {
+            // A simulated network delay. The check moves the clock forward
+            // rather than waiting.
             cx.background_executor().timer(Duration::from_secs(1)).await;
+            // Re-enter the panel through its weak handle to store the outcome.
             let _ = this.update(cx, |this, cx| {
                 this.state = match response {
                     Ok(value) => LoadState::Success(value),
@@ -73,8 +82,9 @@ impl RetryPanel {
         self.request(cx);
     }
 
-    // TODO: Retry must replace the error with Loading before it requests again.
     fn retry(&mut self, cx: &mut Context<Self>) {
+        // TODO: Retry requests again, but the old error stays on screen for the
+        // whole second. Show Loading first and notify, the way `load` does.
         self.request(cx);
     }
 }
@@ -109,6 +119,8 @@ impl Render for RetryPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

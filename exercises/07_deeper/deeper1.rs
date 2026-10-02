@@ -23,10 +23,14 @@ use crate::theme::{button, colors, focus_ring};
 use gpui_kit::{Context, FocusHandle, IntoElement, Render, Window, div, prelude::*, px};
 
 pub struct RegionsPanel {
+    // One handle per place the keyboard can be: the Open button that opens the
+    // overlay (the caller) and the overlay's two pads.
     trigger: FocusHandle,
     first: FocusHandle,
     second: FocusHandle,
+    // While true, the overlay and its pads are part of the element tree.
     open: bool,
+    // How many times each pad has received X.
     first_presses: usize,
     second_presses: usize,
 }
@@ -54,10 +58,13 @@ impl Render for RegionsPanel {
             .gap_4()
             .child(
                 button("regions-open", "Open", true)
+                    // The Open button is where focus should return on Close.
                     .track_focus(&self.trigger)
                     .debug_selector(|| "regions-open".into())
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.open = true;
+                        // Focus belongs to the window: `window.focus` moves it to
+                        // the element that tracks the handle you pass.
                         window.focus(&this.first, cx);
                         cx.notify();
                     })),
@@ -83,6 +90,9 @@ impl Render for RegionsPanel {
                                 .rounded_md()
                                 .bg(c.muted)
                                 .focus(focus_ring)
+                                // Keys go to the focused pad. `stop_propagation`
+                                // keeps X from reaching the pad's ancestors too.
+                                // The second pad works the same way.
                                 .on_key_down(cx.listener(
                                     |this, event: &gpui_kit::KeyDownEvent, _, cx| {
                                         if event.keystroke.key == "x" {
@@ -119,15 +129,20 @@ impl Render for RegionsPanel {
                             button("regions-next", "Move focus", false)
                                 .debug_selector(|| "regions-next".into())
                                 .on_click(cx.listener(|this, _, window, cx| {
+                                    // A focus change redraws the window by itself.
+                                    // `cx.notify()` is for changes to the view's fields.
                                     window.focus(&this.second, cx);
                                 })),
                         )
                         .child(
-                            // TODO: Closing the overlay must return focus to the Open button.
                             button("regions-close", "Close", false)
                                 .debug_selector(|| "regions-close".into())
-                                .on_click(cx.listener(|this, _, _window, cx| {
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    // Hiding the overlay removes both pads from the tree.
                                     this.open = false;
+                                    // TODO: Focus is still on a pad that is no longer
+                                    // drawn. Return it to the Open button: call
+                                    // `window.focus(...)` with `this.trigger` and `cx`.
                                     cx.notify();
                                 })),
                         ),
@@ -136,6 +151,8 @@ impl Render for RegionsPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

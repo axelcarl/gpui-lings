@@ -1,4 +1,4 @@
-//! 25 — Run expensive work off the UI thread
+//! 25 — Run work in the background
 //!
 //! GPUI's background executor runs Send work away from the foreground UI.
 //! The returned Task can be awaited by a foreground cx.spawn task, which
@@ -29,30 +29,41 @@ use std::time::Duration;
 
 #[derive(Default)]
 pub struct BackgroundPanel {
+    // The foreground task from Start. The panel owns it, as in lesson 15, so
+    // it runs until it finishes or the panel goes away.
     task: Option<Task<()>>,
     status: &'static str,
+    // The number shown after the status.
     total: u32,
+    // Counts Ping clicks, which prove the UI responds while the sum is pending.
     pings: u32,
 }
 
 impl BackgroundPanel {
-    // TODO: Show the background sum when the work finishes.
     fn start(&mut self, cx: &mut Context<Self>) {
         self.status = "Loading";
         self.total = 0;
         cx.notify();
 
+        // A one-second timer that stands in for slow work.
         let timer = cx.background_executor().timer(Duration::from_secs(1));
+        // `background_executor().spawn` runs this block on another thread and
+        // returns a Task that resolves to the block's value, the sum. Away from
+        // the UI thread, the block can't reach views or `cx`: it only computes.
         let work = cx.background_executor().spawn(async move {
             timer.await;
             (1..=1_000).sum::<u32>()
         });
+        // `cx.spawn` runs on the UI thread, where views can be updated. Awaiting
+        // `work` waits for the sum without blocking clicks such as Ping.
         self.task = Some(cx.spawn(async move |this, cx| {
             let result = work.await;
+            // `this` is a weak handle to the panel; `update` fails if it closed.
             let _ = this.update(cx, |this, cx| {
                 this.status = "Ready";
+                // TODO: `total` is reset to zero and `result` is ignored. Show
+                // the sum the background task returned.
                 this.total = 0;
-                let _ = result;
                 cx.notify();
             });
         }));
@@ -88,6 +99,8 @@ impl Render for BackgroundPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 set -eu
 cd "$(dirname "$0")"
-exec cargo run --quiet -- "$@"
+exec cargo run --quiet -p gpui-lings -- "$@"

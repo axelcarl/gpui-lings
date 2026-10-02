@@ -9,6 +9,18 @@ pub enum Refresh {
     Failed,
 }
 
+impl Refresh {
+    /// The playground's note above an outdated preview.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Current => "",
+            Self::Checking => "Preview outdated · checking…",
+            Self::Building => "Preview outdated · rebuilding…",
+            Self::Failed => "Preview outdated · refresh failed · see terminal",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreviewState {
     pub index: usize,
@@ -18,7 +30,7 @@ pub struct PreviewState {
 }
 
 impl PreviewState {
-    #[allow(dead_code)] // Used by the playground; the guide only writes.
+    /// Used by the playground; the guide only writes.
     pub fn read(path: &Path) -> Option<Self> {
         let text = fs::read_to_string(path).ok()?;
         let mut lines = text.lines();
@@ -43,7 +55,7 @@ impl PreviewState {
         })
     }
 
-    #[allow(dead_code)] // Used by the guide; the playground only reads.
+    /// Used by the guide; the playground only reads.
     pub fn write(&self, path: &Path) -> io::Result<()> {
         let refresh = match self.refresh {
             Refresh::Current => "current",

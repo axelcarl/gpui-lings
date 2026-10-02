@@ -1,4 +1,4 @@
-# Deeper contexts & input · 21–24
+# Deeper contexts & input · 21–23, then quiz 2
 
 The earlier lessons introduce one focus handle, one action binding, and one
 entity update at a time. This chapter combines them into small input flows:
@@ -9,10 +9,10 @@ entity update at a time. This chapter combines them into small input flows:
   let a child consume an action or explicitly pass it to the parent.
 - [23 · Deferred update](../../exercises/07_deeper/deeper3.rs):
   schedule a second entity update after the current mutable borrow ends.
-- [24 · Command menu](../../exercises/07_deeper/deeper4.rs):
+- [24 · Quiz 2: command menu](../../exercises/quizzes/quiz2.rs):
   combine a scoped action, focus, keyboard selection, and Escape cancellation.
 
-Each source file contains its task and check. Lesson 24 is a checkpoint in a
+Each source file contains its task and check. Lesson 24 is a quiz in a
 new scenario: it reports three bugs as symptoms instead of marking them in the
 source. Revisit [actions and focus](../04_interaction/README.md) and
 [contexts](../03_contexts/README.md) when needed. The checks send real input

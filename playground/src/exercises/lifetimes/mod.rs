@@ -3,7 +3,7 @@
 pub mod background;
 #[path = "../../../../exercises/08_async/async2.rs"]
 pub mod retry;
-#[path = "../../../../exercises/08_async/async4.rs"]
+#[path = "../../../../exercises/quizzes/quiz3.rs"]
 pub mod search;
 #[path = "../../../../exercises/08_async/async3.rs"]
 pub mod stale;

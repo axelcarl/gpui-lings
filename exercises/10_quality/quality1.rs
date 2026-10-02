@@ -1,5 +1,10 @@
 //! 34 — Expose an accessible control
 //!
+//! Screen readers and other assistive technology don't read pixels. GPUI
+//! describes the window to them as an accessibility tree, built with the
+//! AccessKit library: one node per control, with a role (what it is), a name
+//! (what it's called) and a state (such as on or off).
+//!
 //! GPUI Base's unstyled Switch supplies the Switch role, toggled state, and
 //! pointer/keyboard activation. Application code still needs to give it a
 //! meaningful name. A child label is visible, but it is not a substitute for
@@ -24,23 +29,34 @@
 //! ```
 
 use crate::theme::colors;
+// GPUI Base's Switch brings behavior and accessibility, but no look of its own.
 use gpui_kit::base::Switch;
 use gpui_kit::{App, ClickEvent, Context, IntoElement, Render, Window, div, prelude::*, px};
 
 #[derive(Default)]
 pub struct AccessibilityPanel {
+    // The switch's value. The view owns it; the Switch only displays it.
     enabled: bool,
 }
 
 impl AccessibilityPanel {
-    // TODO: Give the switch an accessible name.
+    // Builds the alerts switch. It is a separate function so the check can also
+    // build it on its own and inspect its accessibility node. `on_change` runs
+    // on a click, or on Space while the switch has focus. It receives the
+    // *next* value, the event, the window and the app.
     fn control(
         enabled: bool,
         on_change: impl Fn(bool, &ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Switch {
         Switch::new("alerts-switch")
+            // The value to show, and to expose as the toggled state.
             .checked(enabled)
+            // TODO: The switch exposes its role and toggled state, but no name:
+            // the "Alerts on"/"Alerts off" text below is a visible child, not
+            // the label a screen reader announces for the control. Name it
+            // "Enable alerts" with Switch's `accessibility_label` method.
             .on_change(on_change)
+            // Everything from here on is the app's own styling.
             .w(px(220.0))
             .h(px(48.0))
             .flex()
@@ -54,6 +70,8 @@ impl AccessibilityPanel {
 
 impl Render for AccessibilityPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // `control` takes a plain callback that isn't tied to this view, so it
+        // reaches the view through a weak handle (lesson 14).
         let weak = cx.weak_entity();
         div()
             .flex()
@@ -64,6 +82,7 @@ impl Render for AccessibilityPanel {
                 div()
                     .debug_selector(|| "alerts-control".into())
                     .child(Self::control(self.enabled, move |next, _, _, cx| {
+                        // Store the value the switch asks for, then render again.
                         let _ = weak.update(cx, |this, cx| {
                             this.enabled = next;
                             cx.notify();
@@ -71,6 +90,7 @@ impl Render for AccessibilityPanel {
                     })),
             )
             .child(
+                // The status the check looks for: "alerts-on" or "alerts-off".
                 div()
                     .debug_selector(|| {
                         if self.enabled {
@@ -84,6 +104,8 @@ impl Render for AccessibilityPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,6 +115,8 @@ mod tests {
     };
     use std::sync::{Arc, Mutex};
 
+    // Builds the switch on its own and records the AccessKit node it writes:
+    // what assistive technology would be told about the control.
     struct SemanticsProbe(Arc<Mutex<Option<accesskit::Node>>>);
     impl Render for SemanticsProbe {
         fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
@@ -118,7 +142,7 @@ mod tests {
         let control = window.debug_bounds("alerts-control").unwrap();
         window.simulate_click(control.center(), Modifiers::default());
         window.update(|window, cx| {
-            assert!(panel.read(cx).enabled);
+            assert!(panel.read(cx).enabled, "a click should switch alerts on");
             window.draw(cx).clear(cx);
         });
         assert!(window.debug_bounds("alerts-on").is_some());

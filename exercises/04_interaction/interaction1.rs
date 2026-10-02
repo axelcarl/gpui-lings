@@ -7,7 +7,10 @@
 //! Goal: focus the shortcut area, then use Ctrl-K to toggle its signal.
 //! Match the surface's key_context to the context used by the KeyBinding.
 //! The handler and focus button already work. Keep the binding scoped so it
-//! does not fire when focus is elsewhere in the app.
+//! does not fire when focus is elsewhere in the app. The playground restarts
+//! after every save, and a new window starts with nothing focused: click Focus
+//! shortcut area again before pressing Ctrl-K. The preview shows whether focus
+//! is inside the area.
 //!
 //! Example — Binding an action to a focused region:
 //! (Illustrative names and fields; adapt them to the view below.)
@@ -18,19 +21,23 @@
 //!     .on_action(cx.listener(Self::save))
 //! ```
 
-use crate::theme::button;
+use crate::theme::{button, colors, focus_ring};
 use gpui_kit::{
     Context, FocusHandle, IntoElement, KeyBinding, Render, Window, actions, div, prelude::*,
 };
 
+// Declares an action: a named command that a key binding can trigger.
 actions!(gpui_lings_commands, [ToggleSignal]);
 
 pub struct ActionsPanel {
+    // Identifies the shortcut area in the window's focus tree.
     focus: FocusHandle,
     active: bool,
 }
 impl ActionsPanel {
     pub fn new(cx: &mut Context<Self>) -> Self {
+        // Ctrl-K dispatches ToggleSignal, but only while focus is inside an
+        // element whose key context is "CommandPanel".
         cx.bind_keys([KeyBinding::new(
             "ctrl-k",
             ToggleSignal,
@@ -47,23 +54,38 @@ impl ActionsPanel {
     }
 }
 impl Render for ActionsPanel {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let focused = self.focus.contains_focused(window, cx);
         div()
             .id("action-surface")
+            // Attach the focus handle. Keyboard events and actions travel from
+            // the focused element up through its ancestors, checking their key
+            // contexts against the binding.
             .track_focus(&self.focus)
-            // TODO: Match the key binding's context.
+            // TODO: The binding only matches inside "CommandPanel". Give the
+            // surface the key context the binding expects.
             .key_context("OtherPanel")
+            // When ToggleSignal reaches this element, call Self::toggle.
             .on_action(cx.listener(Self::toggle))
             .flex()
             .flex_col()
             .items_center()
             .gap_4()
+            .p_6()
+            .rounded_xl()
+            .border_1()
+            .border_color(colors().border)
+            .focus(focus_ring)
             .child(
                 button("action-focus", "Focus shortcut area", true)
                     .debug_selector(|| "action-focus".into())
                     .on_click(cx.listener(|this, _, window, cx| window.focus(&this.focus, cx))),
             )
-            .child("Then press Ctrl-K")
+            .child(if focused {
+                "Focus is in the shortcut area · press Ctrl-K"
+            } else {
+                "Not focused · click the button first"
+            })
             .child(
                 div()
                     .debug_selector(|| {
@@ -83,6 +105,8 @@ impl Render for ActionsPanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

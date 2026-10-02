@@ -8,6 +8,8 @@
 //! The pad is already attached to self.pad and handles X. Add the missing
 //! Window call in the button's handler. Tab focus on the button itself is not
 //! focus on the pad. Blurring the window must stop the pad receiving keys.
+//! The playground restarts after every save with nothing focused, so click
+//! Focus pad again in the new window. The pad shows whether it has focus.
 //!
 //! Example — Creating and attaching a focus handle:
 //! (Illustrative names and fields; adapt them to the view below.)
@@ -21,6 +23,7 @@ use crate::theme::{button, colors, focus_ring};
 use gpui_kit::{Context, FocusHandle, IntoElement, Render, Window, div, prelude::*, px};
 
 pub struct FocusPanel {
+    // Created by the context; attached to the key pad with track_focus below.
     pad: FocusHandle,
     presses: usize,
 }
@@ -33,7 +36,8 @@ impl FocusPanel {
     }
 }
 impl Render for FocusPanel {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let focused = self.pad.is_focused(window);
         div()
             .flex()
             .flex_col()
@@ -42,8 +46,10 @@ impl Render for FocusPanel {
             .child(
                 button("focus-pad-button", "Focus pad", true)
                     .debug_selector(|| "focus-pad-button".into())
-                    .on_click(cx.listener(|_this, _, _window, _cx| {
-                        // TODO: Move focus to this.pad using the window.
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        // TODO: Move keyboard focus to the pad. The Window decides
+                        // where keys go: call `window.focus(...)` with `this.pad`
+                        // and `cx`.
                     })),
             )
             .child(
@@ -57,7 +63,9 @@ impl Render for FocusPanel {
                     .border_color(colors().border)
                     .rounded_lg()
                     .text_center()
+                    // Draw a ring while the pad has focus.
                     .focus(focus_ring)
+                    // Key events go to the focused element, then its ancestors.
                     .on_key_down(cx.listener(|this, event: &gpui_kit::KeyDownEvent, _, cx| {
                         if event.keystroke.key == "x" {
                             this.presses += 1;
@@ -65,11 +73,18 @@ impl Render for FocusPanel {
                             cx.stop_propagation();
                         }
                     }))
-                    .child(format!("Press X · received {}", self.presses)),
+                    .child(format!("Press X · received {}", self.presses))
+                    .child(if focused {
+                        "Pad focused"
+                    } else {
+                        "Pad not focused · click Focus pad"
+                    }),
             )
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

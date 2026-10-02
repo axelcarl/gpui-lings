@@ -24,7 +24,9 @@ pub fn spaced_tiles() -> impl IntoElement {
     div()
         .flex()
         .flex_row()
-        // TODO: Give both spaces in the row exactly 16 pixels.
+        // Space *between* siblings is the parent's `gap`. Padding, such as
+        // `.p(px(8.0))`, would add space *inside* an element's edges instead.
+        // TODO: Make both spaces exactly 16 pixels. `px(...)` takes a pixel count.
         .gap(px(0.0))
         .children((0..3).map(|i| {
             div()
@@ -41,6 +43,8 @@ pub fn spaced_tiles() -> impl IntoElement {
         }))
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

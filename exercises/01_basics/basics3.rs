@@ -15,8 +15,11 @@
 //! div().child(caption)
 //! ```
 
+// The playground stores only the count. Each render calls this function to
+// turn it into a message, so the text can never disagree with the number.
 pub fn milestone_text(count: u32) -> &'static str {
-    // TODO: Celebrate as soon as the user reaches three clicks.
+    // TODO: This comparison is off by one. Celebrate as soon as the count
+    // reaches three, not only after it passes three.
     if count > 3 {
         "You reached three!"
     } else {
@@ -24,6 +27,8 @@ pub fn milestone_text(count: u32) -> &'static str {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

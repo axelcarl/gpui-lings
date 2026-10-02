@@ -18,12 +18,14 @@
 //! div().child(label)
 //! ```
 
+// DARK and LIGHT are the playground's two palettes.
 use crate::theme::{DARK, LIGHT, button, focus_ring};
 use gpui_kit::{
     Context, IntoElement, Render, Rgba, Subscription, Window, WindowAppearance, div, prelude::*, px,
 };
 
 pub struct AppearancePanel {
+    // An appearance chosen with Switch preview, or None to follow the system.
     preview: Option<WindowAppearance>,
     _appearance: Subscription,
 }
@@ -32,17 +34,28 @@ impl AppearancePanel {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self {
             preview: None,
+            // Runs when the system switches between light and dark while this
+            // window is open, with this view, the window and its context.
+            // Notifying renders the panel again in the new appearance.
             _appearance: cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
         }
     }
 
-    // TODO: Text must use the semantic foreground token in both appearances.
+    // Picks the panel's colors: (background, text color, mode name). `system`
+    // is the window's real appearance; a preview overrides it.
     fn tones(&self, system: WindowAppearance) -> (Rgba, Rgba, &'static str) {
+        // GPUI has four appearances. Both Dark and VibrantDark count as dark.
         let dark = matches!(
             self.preview.unwrap_or(system),
             WindowAppearance::Dark | WindowAppearance::VibrantDark
         );
+        // A palette holds semantic tokens, named for their role rather than
+        // their color: `background` for surfaces, `foreground` for text on
+        // them. Each palette pairs the two so they contrast.
         let palette = if dark { &DARK } else { &LIGHT };
+        // TODO: In dark mode the text gets the background token, so it
+        // vanishes into the surface. Use the palette's foreground token in both
+        // appearances.
         let foreground = if dark {
             palette.background
         } else {
@@ -58,6 +71,7 @@ impl AppearancePanel {
 
 impl Render for AppearancePanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // `window.appearance()` is the appearance the system gives this window.
         let (background, foreground, mode) = self.tones(window.appearance());
         div()
             .flex()
@@ -67,6 +81,7 @@ impl Render for AppearancePanel {
             .child(
                 button("appearance-switch", "Switch preview", true)
                     .debug_selector(|| "appearance-switch".into())
+                    // Preview the opposite of what the panel shows now.
                     .on_click(cx.listener(|this, _, window, cx| {
                         let current_dark = this.tones(window.appearance()).2 == "dark";
                         this.preview = Some(if current_dark {
@@ -102,6 +117,8 @@ impl Render for AppearancePanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;

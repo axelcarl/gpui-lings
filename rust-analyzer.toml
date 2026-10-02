@@ -1,0 +1,9 @@
+# Editor support for rust-analyzer (VS Code, Zed, Helix, Neovim, …), as in
+# Rustlings. The workspace's root manifest is the playground, so every exercise
+# file is part of a crate: errors, types on hover and completions all work.
+
+# Show Clippy's suggestions alongside compiler errors.
+check.command = "clippy"
+# Check in target/rust-analyzer, so the editor's build never makes
+# ./gpui-lings wait for Cargo's lock, or the other way around.
+cargo.targetDir = true

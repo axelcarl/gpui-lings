@@ -34,14 +34,18 @@ pub struct ObservePanel {
 impl ObservePanel {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let reading = cx.new(|_| Reading::default());
-        let observation = cx.observe(&reading, |this, _reading, cx| {
-            // TODO: Read the new value from the entity that notified us.
+        // `observe` runs this closure each time `reading` notifies. It receives
+        // this panel (`this`), the observed entity (`reading`) and the context.
+        let observation = cx.observe(&reading, |this, reading, cx| {
+            // TODO: Copy the model's current value into `mirrored`. The callback
+            // carries no value of its own: read it with `reading.read(cx)`.
             this.mirrored = 0;
             cx.notify();
         });
         Self {
             reading,
             mirrored: 0,
+            // Dropping the Subscription would stop the observer, so keep it.
             _observation: observation,
         }
     }
@@ -71,6 +75,8 @@ impl Render for ObservePanel {
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;
