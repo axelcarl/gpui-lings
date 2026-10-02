@@ -4,15 +4,15 @@ Window size is an input to `Render`. Choose a layout from the current bounds,
 then let a parent element arrange its children. Re-rendering after a resize
 should choose the new layout without changing the cards themselves.
 
-- [16 · Responsive cards](../../playground/src/exercises/views/responsive.rs):
+- [16 · Responsive cards](../../exercises/06_responsive/responsive1.rs):
   keep a row in a wide window and stack the same cards in a narrow one.
-- [17 · Scrollable content](../../playground/src/exercises/views/scrolling.rs):
+- [17 · Scrollable content](../../exercises/06_responsive/responsive2.rs):
   keep a heading visible while a fixed-height list scrolls to its last row.
-- [18 · Control states](../../playground/src/exercises/views/states.rs):
+- [18 · Control states](../../exercises/06_responsive/responsive3.rs):
   show hover, focus, selected, and disabled states; block disabled activation.
-- [19 · Pointer gesture](../../playground/src/exercises/views/drag.rs):
+- [19 · Pointer gesture](../../exercises/06_responsive/responsive4.rs):
   drag a value and end the gesture even when release happens outside.
-- [20 · Compact inspector](../../playground/src/exercises/views/inspector.rs):
+- [20 · Compact inspector](../../exercises/06_responsive/responsive5.rs):
   combine responsive layout, scrolling, and keyboard selection in a new view.
 
 These lessons build on [flex direction and spacing](../02_views/README.md).

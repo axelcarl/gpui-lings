@@ -17,11 +17,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_lessons import FIXES, ROOT  # noqa: E402
 
 CATALOG = (ROOT / "shared/lessons.rs").read_text()
-LESSONS = re.findall(r'id: "(\d+)",.*?title: "([^"]+)",.*?file: "playground/src/exercises/([^"]+)"', CATALOG, re.S)
+LESSONS = re.findall(r'id: "(\d+)",.*?title: "([^"]+)",.*?file: "exercises/([^"]+)"', CATALOG, re.S)
 
 
 def audit(file):
-    source = (ROOT / "playground/src/exercises" / file).read_text()
+    source = (ROOT / "exercises" / file).read_text()
     todos = [i for i, line in enumerate(source.splitlines()) if re.match(r"\s*//[^!].*TODO", line)]
     spans, changed = [], 0
     for before, after in FIXES[file]:

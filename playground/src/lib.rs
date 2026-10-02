@@ -123,12 +123,22 @@ impl Playground {
     fn apply_preview_state(&mut self, state: &PreviewState) -> bool {
         let previous = (self.status, self.refresh, self.completed);
         // Navigation can check a different lesson while this old preview stays open.
-        if state.index == self.index {
+        if !matches!(state.refresh, Refresh::Checking | Refresh::Building) {
+            self.completed = state.completed;
+        }
+        if state.index == self.index && state.refresh == Refresh::Current {
             self.status = Status::parse(&state.status);
         }
         self.refresh = state.refresh;
-        self.completed = state.completed;
         previous != (self.status, self.refresh, self.completed)
+    }
+
+    fn status_tone(&self) -> Option<Rgba> {
+        match self.refresh {
+            Refresh::Checking | Refresh::Building => Some(colors().loading),
+            Refresh::Failed => Some(colors().destructive),
+            Refresh::Current => self.status.tone(),
+        }
     }
 
     fn completed_count(&self) -> usize {
@@ -199,40 +209,45 @@ impl Playground {
     /// The check result above the preview: green once the learner can move on.
     fn status_bar(&self, lesson: &lessons::Lesson, cx: &mut Context<Self>) -> impl IntoElement {
         let c = colors();
-        let tone = self.status.tone();
-        let (glyph, label, detail) = match self.status {
-            Status::Passed => (
-                Some(icons::CIRCLE_CHECK),
-                "Passed",
-                Some(
-                    div()
-                        .truncate()
-                        .child("Press n in the terminal to continue."),
-                ),
-            ),
-            Status::Failed => (
-                Some(icons::CIRCLE_X),
-                "Not passing yet",
-                Some(
-                    div()
-                        .font_family(MONO)
-                        .text_xs()
-                        .overflow_hidden()
-                        .whitespace_nowrap()
-                        .text_ellipsis_start()
-                        .child(lesson.file),
-                ),
-            ),
-            Status::Error => (
+        let tone = self.status_tone();
+        let (glyph, label, detail) = match self.refresh {
+            Refresh::Checking => (None, "Checking…", None),
+            Refresh::Building => (None, "Rebuilding…", None),
+            Refresh::Failed => (
                 Some(icons::CIRCLE_ALERT),
-                "Needs attention",
-                Some(
-                    div()
-                        .truncate()
-                        .child("Press d in the terminal for diagnostics."),
-                ),
+                "Refresh failed",
+                Some(div().child("See terminal diagnostics.")),
             ),
-            Status::Unchecked => (None, "Preview", None),
+            Refresh::Current => match self.status {
+                Status::Passed => (
+                    Some(icons::CIRCLE_CHECK),
+                    "Passed",
+                    Some(
+                        div()
+                            .truncate()
+                            .child("Press n in the terminal to continue."),
+                    ),
+                ),
+                Status::Failed => (
+                    Some(icons::CIRCLE_X),
+                    "Not passing yet",
+                    Some(
+                        div()
+                            .font_family(MONO)
+                            .text_xs()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .text_ellipsis_start()
+                            .child(lesson.file),
+                    ),
+                ),
+                Status::Error => (
+                    Some(icons::CIRCLE_ALERT),
+                    "Needs attention",
+                    Some(div().truncate().child("See terminal diagnostics.")),
+                ),
+                Status::Unchecked => (None, "Preview", None),
+            },
         };
         div()
             .debug_selector(|| "lesson-status".into())
@@ -351,7 +366,7 @@ impl Playground {
                 }
             }
         }
-        let tone = self.status.tone();
+        let tone = self.status_tone();
         div()
             .flex_1()
             .flex()
@@ -369,7 +384,7 @@ impl Playground {
                         .px_4()
                         .py_2()
                         .text_xs()
-                        .text_color(c.muted_foreground)
+                        .text_color(tone.unwrap_or(c.muted_foreground))
                         .child(self.refresh.label()),
                 )
             })
@@ -575,7 +590,12 @@ mod tests {
                 completed: 0,
                 refresh: Refresh::Building,
             }));
-            assert_eq!(view.completed_count(), 0);
+            assert_eq!(
+                view.completed_count(),
+                7,
+                "pending builds hide the new result"
+            );
+            assert_eq!(view.status_tone(), Some(crate::theme::colors().loading));
             assert_eq!(
                 view.index, 6,
                 "old preview stays open until the replacement is ready"
@@ -604,7 +624,13 @@ mod tests {
                 completed: 4,
                 refresh: Refresh::Building,
             }));
-            assert_eq!(view.completed_count(), 4);
+            assert_eq!(
+                view.completed_count(),
+                3,
+                "progress is revealed with the replacement"
+            );
+            assert_eq!(view.status, Status::Failed);
+            assert_eq!(view.status_tone(), Some(crate::theme::colors().loading));
             assert_eq!(view.index, 3, "passing must not navigate");
             cx.notify();
         });
@@ -619,8 +645,8 @@ mod tests {
             });
             assert_eq!(
                 view.status,
-                Status::Passed,
-                "next lesson must not recolor old preview"
+                Status::Failed,
+                "pending checks must not reveal the new result"
             );
             view.apply_preview_state(&PreviewState {
                 index: 3,
@@ -799,7 +825,7 @@ mod tests {
             Status::Failed,
             Status::Error,
         ] {
-            let (_, cx) =
+            let (view, cx) =
                 cx.add_window_view(|window, cx| Playground::new(3, 0, status, window, cx));
             cx.update(|window, cx| window.draw(cx).clear(cx));
             let bar = cx.debug_bounds("lesson-status").unwrap();
@@ -808,6 +834,15 @@ mod tests {
                 bar.bottom() <= preview.top(),
                 "{status:?} must sit above the preview"
             );
+            for refresh in [super::Refresh::Checking, super::Refresh::Building] {
+                view.update(cx, |view, cx| {
+                    view.refresh = refresh;
+                    assert_eq!(view.status_tone(), Some(colors().loading));
+                    cx.notify();
+                });
+                cx.update(|window, cx| window.draw(cx).clear(cx));
+                assert!(cx.debug_bounds("preview-outdated").is_some());
+            }
         }
     }
 }

@@ -21,7 +21,7 @@ pub fn watch_guide(cx: &mut App) {
                 .timer(std::time::Duration::from_millis(100))
                 .await;
             if rx.try_recv().is_ok() {
-                let _ = cx.update(|cx| cx.quit());
+                cx.update(|cx| cx.quit());
                 break;
             }
         }

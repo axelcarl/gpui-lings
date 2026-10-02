@@ -1,11 +1,21 @@
 //! Application startup and shared state.
+#[path = "../../../../exercises/10_quality/quality1.rs"]
 pub mod accessibility;
+#[path = "../../../../exercises/09_application/application5.rs"]
 pub mod appearance;
+#[path = "../../../../exercises/10_quality/quality2.rs"]
 pub mod behavior_test;
+#[path = "../../../../exercises/10_quality/quality5.rs"]
 pub mod capstone;
+#[path = "../../../../exercises/10_quality/quality3.rs"]
 pub mod large_list;
+#[path = "../../../../exercises/09_application/application3.rs"]
 pub mod persistence;
+#[path = "../../../../exercises/10_quality/quality4.rs"]
 pub mod reusable;
+#[path = "../../../../exercises/09_application/application2.rs"]
 pub mod shared;
+#[path = "../../../../exercises/09_application/application1.rs"]
 pub mod startup;
+#[path = "../../../../exercises/09_application/application4.rs"]
 pub mod windows;

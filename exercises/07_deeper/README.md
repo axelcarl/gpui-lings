@@ -3,13 +3,13 @@
 The earlier lessons introduce one focus handle, one action binding, and one
 entity update at a time. This chapter combines them into small input flows:
 
-- [21 · Focus regions](../../playground/src/exercises/interaction/regions.rs):
+- [21 · Focus regions](../../exercises/07_deeper/deeper1.rs):
   focus an overlay's two regions and return focus to its launcher on close.
-- [22 · Nested action](../../playground/src/exercises/interaction/propagation.rs):
+- [22 · Nested action](../../exercises/07_deeper/deeper2.rs):
   let a child consume an action or explicitly pass it to the parent.
-- [23 · Deferred update](../../playground/src/exercises/contexts/deferred.rs):
+- [23 · Deferred update](../../exercises/07_deeper/deeper3.rs):
   schedule a second entity update after the current mutable borrow ends.
-- [24 · Command menu](../../playground/src/exercises/interaction/menu.rs):
+- [24 · Command menu](../../exercises/07_deeper/deeper4.rs):
   combine a scoped action, focus, keyboard selection, and Escape cancellation.
 
 Each source file contains its task and check. Lesson 24 is a checkpoint in a

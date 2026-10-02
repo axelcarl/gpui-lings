@@ -8,39 +8,39 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXES = {'basics/greeting.rs': [('"Hello, Rust!"', '"Hello, GPUI!"')],
- 'basics/counter.rs': [('count.saturating_sub(1)', 'count.saturating_add(1)')],
- 'basics/milestone.rs': [('if count > 3', 'if count >= 3')],
- 'views/layout.rs': [('.flex_col()', '.flex_row()')],
- 'views/entity.rs': [('this.active = false;', 'this.active = !this.active;')],
- 'views/spacing.rs': [('.gap(px(0.0))', '.gap(px(16.0))')],
- 'contexts/notify.rs': [('// TODO: Tell GPUI this entity changed.',
+FIXES = {'01_basics/basics1.rs': [('"Hello, Rust!"', '"Hello, GPUI!"')],
+ '01_basics/basics2.rs': [('count.saturating_sub(1)', 'count.saturating_add(1)')],
+ '01_basics/basics3.rs': [('if count > 3', 'if count >= 3')],
+ '02_views/views1.rs': [('.flex_col()', '.flex_row()')],
+ '02_views/views2.rs': [('this.active = false;', 'this.active = !this.active;')],
+ '02_views/views3.rs': [('.gap(px(0.0))', '.gap(px(16.0))')],
+ '03_contexts/contexts1.rs': [('// TODO: Tell GPUI this entity changed.',
                          '// TODO: Tell GPUI this entity changed.\n                        _cx.notify();')],
- 'contexts/listener.rs': [('.on_click(|_, _, _| {})', '.on_click(_cx.listener(Self::record_click))')],
- 'contexts/update.rs': [('let mut detached = this.score.read(cx).clone();\n'
+ '03_contexts/contexts2.rs': [('.on_click(|_, _, _| {})', '.on_click(_cx.listener(Self::record_click))')],
+ '03_contexts/contexts3.rs': [('let mut detached = this.score.read(cx).clone();\n'
                          '                        detached.value += 1;\n'
                          '                        let _ = detached.value;',
                          'this.score.update(cx, |score, cx| {\n'
                          '                            score.value += 1;\n'
                          '                            cx.notify();\n'
                          '                        });')],
- 'contexts/observe.rs': [('this.mirrored = 0;', 'this.mirrored = _reading.read(cx).value;')],
- 'contexts/events.rs': [('        drop(subscription);\n', ''),
+ '03_contexts/contexts4.rs': [('this.mirrored = 0;', 'this.mirrored = _reading.read(cx).value;')],
+ '03_contexts/contexts5.rs': [('        drop(subscription);\n', ''),
                         ('_subscription: None,', '_subscription: Some(subscription),')],
- 'interaction/actions.rs': [('.key_context("OtherPanel")', '.key_context("CommandPanel")')],
- 'interaction/focus.rs': [('// TODO: Move focus to this.pad using the window.',
+ '04_interaction/interaction1.rs': [('.key_context("OtherPanel")', '.key_context("CommandPanel")')],
+ '04_interaction/interaction2.rs': [('// TODO: Move focus to this.pad using the window.',
                            '// TODO: Move focus to this.pad using the window.\n'
                            '                        _window.focus(&_this.pad, _cx);')],
- 'lifetimes/weak.rs': [('let target: Option<Entity<Record>> = None;', 'let target = self.target.upgrade();')],
- 'lifetimes/tasks.rs': [('        drop(task);', '        self.task = Some(task);')],
- 'views/responsive.rs': [('    if narrow {\n        cards.gap(px(8.0)).flex_row()',
+ '05_lifetimes/lifetimes1.rs': [('let target: Option<Entity<Record>> = None;', 'let target = self.target.upgrade();')],
+ '05_lifetimes/lifetimes2.rs': [('        drop(task);', '        self.task = Some(task);')],
+ '06_responsive/responsive1.rs': [('    if narrow {\n        cards.gap(px(8.0)).flex_row()',
                           '    if narrow {\n        cards.gap(px(8.0)).flex_col()')],
- 'views/scrolling.rs': [('.overflow_hidden()', '.overflow_y_scroll()')],
- 'views/states.rs': [('        self.selected = !self.selected;\n        cx.notify();',
+ '06_responsive/responsive2.rs': [('.overflow_hidden()', '.overflow_y_scroll()')],
+ '06_responsive/responsive3.rs': [('        self.selected = !self.selected;\n        cx.notify();',
                       '        if !self.disabled {\n            self.selected = !self.selected;\n        }\n        cx.notify();')],
- 'views/drag.rs': [('cx.listener(|_this, _, _, _cx| {})',
+ '06_responsive/responsive4.rs': [('cx.listener(|_this, _, _, _cx| {})',
                     'cx.listener(|this, _, _, cx| {\n                        this.drag_start = None;\n                        cx.notify();\n                    })')],
- 'views/inspector.rs': [('size.height < px(760.0)', 'size.width < px(760.0)'),
+ '06_responsive/responsive5.rs': [('size.height < px(760.0)', 'size.width < px(760.0)'),
                         ('            .w(px(220.0))\n            .overflow_y_scroll()',
                          '            .w(px(220.0))\n            .h(px(168.0))\n            .overflow_y_scroll()'),
                         ('        self.selected = (self.selected + 1).min(11);\n        cx.notify();',
@@ -53,13 +53,13 @@ FIXES = {'basics/greeting.rs': [('"Hello, Rust!"', '"Hello, GPUI!"')],
                          '                if event.keystroke.key == "j" {\n                    this.next(cx);\n                    cx.stop_propagation();\n'
                          '                }\n            }))\n            .child(format!',
                          '            .border_color(c.border)\n            .child(format!')],
- 'interaction/regions.rs': [('                                    this.open = false;\n                                    cx.notify();',
+ '07_deeper/deeper1.rs': [('                                    this.open = false;\n                                    cx.notify();',
                              '                                    this.open = false;\n                                    _window.focus(&this.trigger, cx);\n                                    cx.notify();')],
- 'interaction/propagation.rs': [('            cx.notify();\n        }\n    }\n\n    fn route_in_parent',
+ '07_deeper/deeper2.rs': [('            cx.notify();\n        }\n    }\n\n    fn route_in_parent',
                                  '            cx.notify();\n        } else {\n            cx.propagate();\n        }\n    }\n\n    fn route_in_parent')],
- 'contexts/deferred.rs': [('        self.history.push("Queued");\n        cx.notify();\n    }',
+ '07_deeper/deeper3.rs': [('        self.history.push("Queued");\n        cx.notify();\n    }',
                            '        self.history.push("Queued");\n        cx.notify();\n        let weak = cx.weak_entity();\n        cx.defer(move |cx| {\n            let _ = weak.update(cx, |this, cx| {\n                this.history.push("Settled");\n                cx.notify();\n            });\n        });\n    }')],
- 'interaction/menu.rs': [('                                    "down" => this.selected = (this.selected + 1).min(1),\n'
+ '07_deeper/deeper4.rs': [('                                    "down" => this.selected = (this.selected + 1).min(1),\n'
                           '                                    "up" => this.selected = this.selected.saturating_sub(1),',
                           '                                    "down" => {\n                                        this.selected = (this.selected + 1).min(1);\n'
                           '                                        cx.notify();\n                                    }\n'
@@ -69,38 +69,38 @@ FIXES = {'basics/greeting.rs': [('"Hello, Rust!"', '"Hello, GPUI!"')],
                          ('                        .key_context("CommandMenuDemo")\n', ''),
                          ('        self.open = false;\n        window.focus(&self.menu, cx);',
                           '        self.open = false;\n        window.focus(&self.launcher, cx);')],
- 'lifetimes/background.rs': [('                this.total = 0;\n                let _ = result;',
+ '08_async/async1.rs': [('                this.total = 0;\n                let _ = result;',
                               '                this.total = result;')],
- 'lifetimes/retry.rs': [('        self.request(cx);\n    }\n}',
+ '08_async/async2.rs': [('        self.request(cx);\n    }\n}',
                          '        self.state = LoadState::Loading;\n        cx.notify();\n        self.request(cx);\n    }\n}')],
- 'lifetimes/stale.rs': [('                this.visible = Some(label);',
+ '08_async/async3.rs': [('                this.visible = Some(label);',
                          '                if this.selected == Some(label) { this.visible = Some(label); }')],
- 'lifetimes/search.rs': [('            query: cx.new(|cx| InputState::new(window, cx).placeholder("Search items")),\n',
+ '08_async/async4.rs': [('            query: cx.new(|cx| InputState::new(window, cx).placeholder("Search items")),\n',
                           '            query,\n'),
                          ('                if generation > this.generation {', '                if generation != this.generation {'),
                          ('        if query == self.query_text {\n            return;\n        }\n', '')],
- 'app/startup.rs': [('    let _ = (cx, WindowOptions::default());\n    None',
+ '09_application/application1.rs': [('    let _ = (cx, WindowOptions::default());\n    None',
                     '    gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| cx.new(|_| WorkspaceRoot))\n        .ok()\n        .map(|(_, root)| root)')],
- 'app/shared.rs': [('let _subscription = cx.observe_global',
+ '09_application/application2.rs': [('let _subscription = cx.observe_global',
                     'let subscription = cx.observe_global'),
                    ('_subscription: None,',
                     '_subscription: Some(subscription),')],
- 'app/persistence.rs': [('    let _ = path;\n    false',
+ '09_application/application3.rs': [('    let _ = path;\n    false',
                         '    fs::read_to_string(path).is_ok_and(|value| value.trim() == "compact")')],
- 'app/windows.rs': [('        let _ = subscription;',
+ '09_application/application4.rs': [('        let _ = subscription;',
                      '        self._close_subscription = Some(subscription);')],
- 'app/appearance.rs': [('let foreground = if dark {\n            palette.background\n        } else {\n            palette.foreground\n        };',
+ '09_application/application5.rs': [('let foreground = if dark {\n            palette.background\n        } else {\n            palette.foreground\n        };',
                         'let foreground = palette.foreground;')],
- 'app/accessibility.rs': [('            .checked(enabled)\n            .on_change(on_change)',
+ '10_quality/quality1.rs': [('            .checked(enabled)\n            .on_change(on_change)',
                            '            .checked(enabled)\n            .accessibility_label("Enable alerts")\n            .on_change(on_change)')],
- 'app/behavior_test.rs': [('        let _ = (load, Modifiers::default());',
+ '10_quality/quality2.rs': [('        let _ = (load, Modifiers::default());',
                            '        window.simulate_click(load.center(), Modifiers::default());'),
                           ('        assert!(window.debug_bounds("behavior-Loading").is_some());\n',
                            '        assert!(window.debug_bounds("behavior-Loading").is_some());\n        window.executor().advance_clock(Duration::from_secs(1));\n        window.run_until_parked();\n')],
- 'app/large_list.rs': [('        let all = (0..ROWS).map(|ix| self.row(ix, cx)).collect::<Vec<_>>();\n        all.into_iter()\n            .skip(range.start)\n            .take(range.len())\n            .collect()',
+ '10_quality/quality3.rs': [('        let all = (0..ROWS).map(|ix| self.row(ix, cx)).collect::<Vec<_>>();\n        all.into_iter()\n            .skip(range.start)\n            .take(range.len())\n            .collect()',
                         '        range.map(|ix| self.row(ix, cx)).collect()')],
- 'app/reusable.rs': [('        .checked(false)', '        .checked(checked)')],
- 'app/capstone.rs': [('        let _task = cx.spawn(async move |this, cx| {',
+ '10_quality/quality4.rs': [('        .checked(false)', '        .checked(checked)')],
+ '10_quality/quality5.rs': [('        let _task = cx.spawn(async move |this, cx| {',
                        '        self._task = Some(cx.spawn(async move |this, cx| {'),
                       ('                cx.notify();\n            });\n        });\n    }',
                        '                cx.notify();\n            });\n        }));\n    }'),
@@ -140,15 +140,21 @@ if __name__ == "__main__":
         playground = workspace / "playground"
         shutil.copytree(ROOT / "playground/src", playground / "src")
         shutil.copytree(ROOT / "shared", workspace / "shared")
+        shutil.copytree(ROOT / "exercises", workspace / "exercises")
         for name in ("Cargo.toml", "Cargo.lock"):
             shutil.copy2(ROOT / "playground" / name, playground / name)
         for file, replacements in FIXES.items():
-            source = playground / "src/exercises" / file
+            source = workspace / "exercises" / file
             text = source.read_text()
             for before, after in replacements:
                 if text.count(before) != 1:
                     raise SystemExit(f"Reference patch no longer applies exactly once: {file}")
                 text = text.replace(before, after)
             source.write_text(text)
+        # Reuse dependency builds, but never reuse the starter's test binary:
+        # exercises now live outside the package root and shared Cargo caches
+        # can otherwise consider a copied crate fresh against the original files.
+        manifest = playground / "Cargo.toml"
+        manifest.write_text(manifest.read_text() + '\n[lib]\nname = "gpui_lings_reference"\n')
         check(playground / "Cargo.toml", expect_red=False)
     print("Learner source files were not modified.")

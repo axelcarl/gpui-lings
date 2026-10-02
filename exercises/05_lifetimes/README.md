@@ -5,8 +5,8 @@ alive; a `WeakEntity<T>` does not. Upgrading a weak handle can fail once the
 last strong owner disappears, so handle the missing entity as normal control
 flow.
 
-- [14 · Weak handles](../../playground/src/exercises/lifetimes/weak.rs): inspect before and after the owner is released.
-- [15 · Tasks](../../playground/src/exercises/lifetimes/tasks.rs): retain a task while loading, then cancel it by dropping its handle.
+- [14 · Weak handles](../../exercises/05_lifetimes/lifetimes1.rs): inspect before and after the owner is released.
+- [15 · Tasks](../../exercises/05_lifetimes/lifetimes2.rs): retain a task while loading, then cancel it by dropping its handle.
 
 `Context::spawn` gives the future a weak entity and an `AsyncApp`. After an
 `await`, use the handle's update closure to regain synchronous access to state.

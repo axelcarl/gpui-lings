@@ -18,6 +18,7 @@ pub struct Palette {
     pub destructive: Rgba,
     /// Tailwind green, paired with shadcn's destructive red for check status.
     pub success: Rgba,
+    pub loading: Rgba,
     pub border: Rgba,
     pub input: Rgba,
     pub ring: Rgba,
@@ -49,6 +50,7 @@ pub const LIGHT: Palette = Palette {
     accent: hex(0xf5f5f5),
     destructive: hex(0xe7000b),
     success: hex(0x00a63e),
+    loading: hex(0x2563eb),
     border: hex(0xe5e5e5),
     input: hex(0xe5e5e5),
     ring: hex(0xa1a1a1),
@@ -65,6 +67,7 @@ pub const DARK: Palette = Palette {
     accent: hex(0x262626),
     destructive: hex(0xff6467),
     success: hex(0x05df72),
+    loading: hex(0x60a5fa),
     border: alpha(hex(0xffffff), 0.1),
     input: alpha(hex(0xffffff), 0.15),
     ring: hex(0x737373),

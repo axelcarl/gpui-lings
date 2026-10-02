@@ -16,11 +16,11 @@ that callback so your method also receives `&mut Self` and `Context<Self>`.
 Keep mutable borrows inside synchronous update closures; do not capture them
 in callbacks or keep them across `await`.
 
-1. [07 · Notify](../../playground/src/exercises/contexts/notify.rs): state changes need notification.
-2. [08 · Listener](../../playground/src/exercises/contexts/listener.rs): connect a handler to its view.
-3. [09 · Update](../../playground/src/exercises/contexts/update.rs): mutate the entity behind the handle.
-4. [10 · Observe](../../playground/src/exercises/contexts/observe.rs): react to another entity's notification and read its current value.
-5. [11 · Subscribe](../../playground/src/exercises/contexts/events.rs): receive a typed event payload and retain the connection.
+1. [07 · Notify](../../exercises/03_contexts/contexts1.rs): state changes need notification.
+2. [08 · Listener](../../exercises/03_contexts/contexts2.rs): connect a handler to its view.
+3. [09 · Update](../../exercises/03_contexts/contexts3.rs): mutate the entity behind the handle.
+4. [10 · Observe](../../exercises/03_contexts/contexts4.rs): react to another entity's notification and read its current value.
+5. [11 · Subscribe](../../exercises/03_contexts/contexts5.rs): receive a typed event payload and retain the connection.
 
 `notify` announces a changed entity. `emit` sends a specific event. Neither
 replaces the other; choose according to what the receiver needs to know.

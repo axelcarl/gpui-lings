@@ -18,8 +18,9 @@ exercise file, save, and explore the result. The guide checks your change and
 rebuilds the app automatically. Passing a check leaves you on the lesson so you
 can experiment; type `n` and Enter when you are ready to continue.
 
-The progress bar counts the current lesson as soon as its check passes. While
-checking and rebuilding, the previous preview stays open with an outdated notice.
+The progress bar counts each verified lesson independently of your current place.
+While checking and rebuilding, the previous preview stays open with a blue
+loading status. Its result and progress stay unchanged until the refresh finishes.
 It is replaced only once the new window is ready, keeping the position and size
 you chose. If a build or launch fails, the previous preview stays available.
 Closing the playground ends the terminal session; quitting or closing the terminal
@@ -43,8 +44,13 @@ dark appearance; set `GPUI_LINGS_APPEARANCE=light` or `dark` to override it.
 
 ## Your terminal companion
 
-The terminal puts the current exercise first: its number and title, source
-file, goal, and one status line. Hints, source instructions, and diagnostics appear on demand.
+The terminal shows diagnostics first, followed by a compact progress bar, the
+current exercise path, and its goal. Compiler errors keep Rust's colored source
+excerpts and suggestions. Failed tests show a short check diagnostic with the
+assertion's source location, source line, and failure message. Workspace paths
+are relative so they are easier to read. `d` shows the full captured test/build
+output, including the test-run summary. Hints and source instructions appear
+on demand. Loading stays blue and hides the new result until refresh finishes.
 Use `?` for all commands. Type a command and press Enter:
 
 | Command | What it does |
@@ -59,9 +65,14 @@ Use `?` for all commands. Type a command and press Enter:
 | `n` | Verify the current lesson and continue if it passes |
 | `q` | Close the session and its playground |
 
-Your place is saved in `.gpui-lings-progress`. Earlier completion records resume
-at the first newly added exercise: 06 for the original course, 07 for the
-six-exercise course. The guide supports `NO_COLOR` and
+Your current exercise and completed exercise names are saved separately in
+`.gpui-lings-state.txt`, following [Rustlings' state model](https://github.com/rust-lang/rustlings/blob/main/src/app_state.rs).
+Going back does not erase completed exercises, and `n` skips completed exercises
+to find the next pending one, wrapping to earlier pending work when needed.
+The list marks completion separately from the current exercise. Existing
+`.gpui-lings-progress` files migrate automatically on the first session; the old
+file is preserved. Earlier completion records resume at newly added material.
+The guide supports `NO_COLOR` and
 plain output when redirected or used in a `TERM=dumb` terminal. `COLUMNS` can
 set its wrapping width. Closing standard input also ends the session cleanly.
 
@@ -70,7 +81,7 @@ One-shot commands are available too:
 ```sh
 ./gpui-lings list
 ./gpui-lings check       # Report all lessons; failing exercises are expected
-./gpui-lings check 07    # Run one focused check
+./gpui-lings check contexts1  # Names and numeric IDs both work
 ./gpui-lings hint        # Hint for your saved lesson
 ./gpui-lings hint 38 2   # Second, more specific hint for lesson 38
 ./gpui-lings app 07      # Start exploring contexts without changing your saved place
@@ -121,9 +132,11 @@ Thirty-eight exercises across ten chapters:
 | 37 · Compose a reusable component | Controlled input and event output | Independent state and disabled behavior |
 | 38 · Capstone: small native workspace | Entities, responsive panes, actions, async and save | Five reported bugs, found without source markers |
 
-Each Rust file under [`playground/src/exercises`](playground/src/exercises/)
-contains its explanation, task, and check. The terminal's `g` command reads
-those comments. A TODO marks the line to change in lessons 01–15 and the
+Each Rust file under [`exercises`](exercises/)
+contains its explanation, task, usage examples, and check. The terminal's `g`
+command reads those comments. Files follow Rustlings' topic-and-number convention,
+such as `exercises/01_basics/basics1.rs` and
+`exercises/03_contexts/contexts2.rs` (the listener lesson). A TODO marks the line to change in lessons 01–15 and the
 function or element in later lessons. Checkpoints list reported symptoms
 instead, and lessons 30 and 32 revisit lesson 11 without a marker. Optional
 hints, ordering, and check selection live in [`shared/lessons.rs`](shared/lessons.rs).
