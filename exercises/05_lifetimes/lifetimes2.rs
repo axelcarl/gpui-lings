@@ -1,60 +1,35 @@
-//! 15 — Keep async work alive
-//!
-//! cx.spawn creates work on GPUI's foreground executor and returns a Task.
-//! Dropping Task cancels its work; store it when the view should own its lifetime.
-//! The async callback receives a WeakEntity and AsyncApp, which can cross await.
-//! Re-enter a synchronous update to change the view and call notify afterward.
-//!
-//! Goal: Load changes Loading to Ready after one second, while Cancel still works.
-//! Store the task in self.task instead of dropping it. A new load replaces the
-//! old task; Cancel takes and drops it. Use the executor's timer rather than
-//! thread::sleep, which would block the UI. CPU-heavy work belongs on the
-//! background executor; this simulated delay only needs an asynchronous timer.
-//!
-//! Example — Owning asynchronous work:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let pending = cx.spawn(async move |view, cx| {
-//!     cx.background_executor().timer(Duration::from_millis(100)).await;
-//!     let _ = view.update(cx, |view, cx| {
-//!         view.ready = true;
-//!         cx.notify();
-//!     });
-//! });
-//! self.pending = Some(pending); // Dropping this handle cancels the work.
-//! ```
+// While GPUI runs your listener, it's in the middle of updating your view: the
+// view stays mutably borrowed until the listener returns. Updating the same
+// view again through its handle before then would panic.
+//
+// `cx.defer(...)` gets around that. It schedules a closure to run once the
+// current update has finished. The closure only receives the app (`&mut App`),
+// not your view, so it needs a handle to reach the view again. Take a weak one
+// with `cx.weak_entity()`, as in lesson 17: the view might be gone by the time
+// the closure runs.
 
 use crate::theme::button;
-use gpui_kit::{Context, IntoElement, Render, Task, Window, div, prelude::*};
-use std::time::Duration;
+use gpui_kit::{Context, IntoElement, Render, Window, div, prelude::*};
 
 #[derive(Default)]
-pub struct TasksPanel {
-    task: Option<Task<()>>,
-    status: Option<&'static str>,
+pub struct DeferredPanel {
+    // Every step recorded so far, in order. The label shows the latest one.
+    history: Vec<&'static str>,
 }
-impl TasksPanel {
-    fn load(&mut self, cx: &mut Context<Self>) {
-        self.status = Some("Loading…");
+
+impl DeferredPanel {
+    // The Queue listener calls this while GPUI is updating this view, so the
+    // view stays borrowed until `queue` returns. Updating it again through its
+    // handle before then would panic.
+    fn queue(&mut self, cx: &mut Context<Self>) {
+        self.history.push("Queued");
         cx.notify();
-        // `cx.spawn` starts the async block on GPUI's foreground executor and
-        // returns a Task, a handle that owns the work. The block receives a weak
-        // handle to this view (`this`) and an async context (`cx`).
-        let task = cx.spawn(async move |this, cx| {
-            // Wait a second without blocking the UI.
-            cx.background_executor().timer(Duration::from_secs(1)).await;
-            // The view may have closed meanwhile, so `update` returns a Result.
-            let _ = this.update(cx, |this, cx| {
-                this.status = Some("Ready");
-                cx.notify();
-            });
-        });
-        // TODO: `task` is dropped when `load` returns, and dropping a Task
-        // cancels its work before the timer fires. Store it in `self.task` so
-        // the panel owns it: Cancel drops it, and a new load replaces it.
+        // TODO: Nothing records "Settled" yet. Push it onto `history` in a
+        // second step, once this update has ended, and notify after that.
     }
 }
-impl Render for TasksPanel {
+
+impl Render for DeferredPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .flex()
@@ -62,24 +37,19 @@ impl Render for TasksPanel {
             .items_center()
             .gap_4()
             .child(
-                button("task-load", "Load", true)
-                    .debug_selector(|| "task-load".into())
-                    .on_click(cx.listener(|this, _, _, cx| this.load(cx))),
-            )
-            .child(
-                button("task-cancel", "Cancel", false)
-                    .debug_selector(|| "task-cancel".into())
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        // Taking the task out of the panel drops it: cancelled.
-                        this.task.take();
-                        this.status = Some("Cancelled");
-                        cx.notify();
-                    })),
+                button("deferred-queue", "Queue", true)
+                    .debug_selector(|| "deferred-queue".into())
+                    .on_click(cx.listener(|this, _, _, cx| this.queue(cx))),
             )
             .child(
                 div()
-                    .debug_selector(|| format!("task-{}", self.status.unwrap_or("Idle")))
-                    .child(self.status.unwrap_or("Idle")),
+                    .debug_selector(|| {
+                        format!(
+                            "deferred-{}",
+                            self.history.last().copied().unwrap_or("Idle")
+                        )
+                    })
+                    .child(self.history.last().copied().unwrap_or("Idle")),
             )
     }
 }
@@ -92,42 +62,20 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_15(cx: &mut TestAppContext) {
-        let (panel, cx) = cx.add_window_view(|_, _| TasksPanel::default());
+    fn exercise_18(cx: &mut TestAppContext) {
+        let (panel, cx) = cx.add_window_view(|_, _| DeferredPanel::default());
         cx.update(|window, cx| window.draw(cx).clear(cx));
-        let load = cx.debug_bounds("task-load").unwrap();
-        cx.simulate_click(load.center(), Modifiers::default());
-        cx.run_until_parked();
-        cx.update(|_, cx| {
-            assert_eq!(
-                panel.read(cx).status,
-                Some("Loading…"),
-                "loading must be observable before the task completes"
-            )
-        });
-        cx.executor().advance_clock(Duration::from_secs(1));
+        let queue = cx.debug_bounds("deferred-queue").expect("Queue missing");
+        cx.simulate_click(queue.center(), Modifiers::default());
         cx.run_until_parked();
         cx.update(|window, cx| {
             assert_eq!(
-                panel.read(cx).status,
-                Some("Ready"),
-                "retain the Task; dropping it cancels the future"
+                panel.read(cx).history,
+                ["Queued", "Settled"],
+                "the second update should run after the first"
             );
             window.draw(cx).clear(cx);
         });
-        assert!(cx.debug_bounds("task-Ready").is_some());
-        cx.simulate_click(load.center(), Modifiers::default());
-        cx.run_until_parked();
-        let cancel = cx.debug_bounds("task-cancel").unwrap();
-        cx.simulate_click(cancel.center(), Modifiers::default());
-        cx.executor().advance_clock(Duration::from_secs(2));
-        cx.run_until_parked();
-        cx.update(|_, cx| {
-            assert_eq!(
-                panel.read(cx).status,
-                Some("Cancelled"),
-                "a cancelled task must not replace the current state"
-            )
-        });
+        assert!(cx.debug_bounds("deferred-Settled").is_some());
     }
 }

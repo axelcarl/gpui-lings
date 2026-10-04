@@ -1,27 +1,13 @@
-//! 35 — Test behavior through GPUI
-//!
-//! This view already works. This time the exercise is the test below. Drive it
-//! through GPUI rather than calling the view's private method: render the
-//! preview, click Load, assert the intermediate state, advance the simulated
-//! clock, and assert the rendered result. No real sleep is needed.
-//!
-//! A #[gpui::test] runs on a simulated executor, so time stands still until
-//! the test moves it: a one-second timer never fires on its own. advance_clock
-//! moves the clock forward and fires the timers that come due, and
-//! run_until_parked then runs every task that can still make progress.
-//!
-//! Goal: make exercise_35 pass by completing its interaction test. Leave the
-//! view behavior in place. The starter test fails because it never clicks Load.
-//!
-//! Example — Simulating an interaction in a GPUI test:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! cx.update(|window, cx| window.draw(cx).clear(cx));
-//! let bounds = cx.debug_bounds("submit").unwrap();
-//! cx.simulate_click(bounds.center(), Modifiers::default());
-//! cx.executor().advance_clock(Duration::from_millis(250));
-//! cx.run_until_parked();
-//! ```
+// This view already works. This time the exercise is its test, at the bottom
+// of the file. The test drives the view the way a user would: it draws a
+// frame, clicks Load, and checks what's on screen. It never calls the view's
+// methods directly.
+//
+// A `#[gpui::test]` runs on a simulated clock, and time stands still until the
+// test moves it, so a one-second timer never fires on its own. `advance_clock`
+// moves the clock forward and fires the timers that come due, and then
+// `run_until_parked` runs every task that can make progress. No real waiting
+// needed. The checks in earlier lessons, such as lesson 19's, work this way.
 
 use crate::theme::button;
 use gpui_kit::{Context, IntoElement, Render, Task, Window, div, prelude::*};
@@ -31,7 +17,7 @@ use std::time::Duration;
 pub struct BehaviorTestPanel {
     loading: bool,
     loaded: bool,
-    // The running load. Dropping it would cancel the work (lesson 15).
+    // The running load. Dropping it would cancel the work (lesson 19).
     task: Option<Task<()>>,
 }
 
@@ -93,7 +79,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_35(cx: &mut TestAppContext) {
+    fn exercise_39(cx: &mut TestAppContext) {
         // Opens a headless window showing the panel. `panel` is the view's
         // entity; `window` is a VisualTestContext, which can draw the window
         // and send it input.
@@ -103,8 +89,8 @@ mod tests {
         // Where the Load button was drawn, found through its debug_selector.
         let load = window.debug_bounds("behavior-load").unwrap();
 
-        // TODO: Click Load with `window.simulate_click`. Like the header
-        // example, give it a point inside `load` and the modifier keys held.
+        // TODO: Click Load with `window.simulate_click`. It takes a point,
+        // such as the center of `load`, and the modifier keys held down.
 
         // Right after the click, the view is loading.
         window.update(|window, cx| {

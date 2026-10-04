@@ -1,29 +1,15 @@
-//! 12 — Route a keyboard action
-//!
-//! A KeyBinding maps a keystroke to a named Action. The binding's context is a
-//! predicate over the focused element's ancestor path. on_action handles the
-//! resulting command. This separates "what to do" from "which key was pressed".
-//!
-//! Goal: focus the shortcut area, then use Ctrl-K to toggle its signal.
-//! Match the surface's key_context to the context used by the KeyBinding.
-//! The handler and focus button already work. Keep the binding scoped so it
-//! does not fire when focus is elsewhere in the app. The playground restarts
-//! after every save, and a new window starts with nothing focused: click Focus
-//! shortcut area again before pressing Ctrl-K. The preview shows whether focus
-//! is inside the area.
-//!
-//! Example — Binding an action to a focused region:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! actions!(editor, [Save]);
-//! cx.bind_keys([KeyBinding::new("ctrl-s", Save, Some("Editor"))]);
-//! div().key_context("Editor").track_focus(&self.focus)
-//!     .on_action(cx.listener(Self::save))
-//! ```
+// In lesson 15, the Ctrl-L binding named no key context, so it matched
+// wherever focus was. Often a shortcut should only work in one part of the
+// window. A binding can name a *key context*, and then it only matches while
+// the focused element, or one of its parents, has that `key_context`. That
+// way Ctrl-K can mean one thing here and something else elsewhere in the app.
+//
+// Click "Focus shortcut area" before you press Ctrl-K; the preview says
+// whether the area has focus.
 
 use crate::theme::{button, colors, focus_ring};
 use gpui_kit::{
-    Context, FocusHandle, IntoElement, KeyBinding, Render, Window, actions, div, prelude::*,
+    Context, FocusHandle, IntoElement, KeyBinding, Render, Window, actions, div, prelude::*, px,
 };
 
 // Declares an action: a named command that a key binding can trigger.
@@ -58,6 +44,7 @@ impl Render for ActionsPanel {
         let focused = self.focus.contains_focused(window, cx);
         div()
             .id("action-surface")
+            .w(px(360.0))
             // Attach the focus handle. Keyboard events and actions travel from
             // the focused element up through its ancestors, checking their key
             // contexts against the binding.
@@ -75,6 +62,7 @@ impl Render for ActionsPanel {
             .rounded_xl()
             .border_1()
             .border_color(colors().border)
+            .bg(colors().card)
             .focus(focus_ring)
             .child(
                 button("action-focus", "Focus shortcut area", true)
@@ -113,7 +101,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_12(cx: &mut TestAppContext) {
+    fn exercise_16(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(|_, cx| ActionsPanel::new(cx));
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let button = cx.debug_bounds("action-focus").unwrap();

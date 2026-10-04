@@ -1,20 +1,11 @@
-//! 06 — Give a layout room to breathe
-//!
-//! A parent's gap adds space between its children. Padding adds space inside
-//! an element's edges. Keeping sibling spacing on the parent makes it
-//! consistent as children are added or removed.
-//!
-//! Goal: add exactly 16 pixels between each pair of tiles, keeping all three
-//! on one row. Set the gap with px(...); rem-based helpers depend on the
-//! window's rem size. The check measures both gaps and the tiles' alignment.
-//! Explore larger gaps after passing, then restore 16 pixels to continue.
-//!
-//! Example — Choosing explicit spacing:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! div().flex().gap(px(12.0)).p(px(8.0))
-//!     .child("One").child("Two")
-//! ```
+// Spacing can live in two places. A parent's `gap` puts space *between* its
+// children. Padding puts space *inside* an element, between its edges and its
+// content. Keeping the space between siblings on the parent keeps it even when
+// you add or remove a tile.
+//
+// Helpers like `gap_4()` scale with the window's font size, while `gap(px(..))`
+// takes an exact number of pixels. This exercise wants an exact size. Once it
+// passes, try bigger gaps in the preview, then set it back to continue.
 
 use crate::theme::colors;
 use gpui_kit::{IntoElement, div, prelude::*, px};

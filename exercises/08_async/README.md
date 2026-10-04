@@ -1,21 +1,40 @@
-# Async data & failure paths · 25–27, then quiz 3
+# Async data & failure paths
 
-These lessons build on [15 · Keep async work alive](../../exercises/05_lifetimes/lifetimes2.rs).
-Each preview has its own tasks and deterministic input; tests advance GPUI's
-clock without waiting for real time.
+These lessons build on lesson 19. Work that takes a while, or a lot of CPU,
+shouldn't run on the UI thread. GPUI has two executors for that:
 
-- [25 · Background work](../../exercises/08_async/async1.rs):
-  await a background calculation and render its result in the owning entity.
-- [26 · Error and retry](../../exercises/08_async/async2.rs):
-  replace an error with Loading immediately, then show the next injected result.
-- [27 · Stale results](../../exercises/08_async/async3.rs):
-  accept the newest selection even when an older request completes later.
-- [28 · Quiz 3: searchable results](../../exercises/quizzes/quiz3.rs):
-  type a query, retry a failed search, and choose a result with the keyboard.
+- `cx.spawn(...)` runs on the UI thread. It can update views, but it must never
+  block.
+- `cx.background_executor().spawn(...)` runs on other threads. It can do heavy
+  work, but it can't touch views.
 
-The quiz reports three bugs as symptoms instead of marking them in the
-source; one reaches back to entity identity in lesson 09. It uses GPUI Base's
-unstyled input so platform text editing works; the dedicated text-input lesson
-in the [plan](../../lesson-plan.md) remains open.
-References: [GPUI contexts](https://github.com/zed-industries/zed/blob/main/crates/gpui/docs/contexts.md)
-and [GPUI overview](https://github.com/zed-industries/zed/blob/main/crates/gpui/README.md).
+So the usual shape is a background task that computes a result, awaited by a
+foreground task that stores it in the view:
+
+```rust
+let work = cx.background_executor().spawn(async move { expensive_sum() });
+self.task = Some(cx.spawn(async move |this, cx| {
+    let sum = work.await;
+    let _ = this.update(cx, |this, cx| {
+        this.sum = Some(sum);
+        cx.notify();
+    });
+}));
+```
+
+Requests can fail, and they can finish out of order. Keep the request's state
+explicit (idle, loading, loaded, failed), and set it to loading as soon as a new
+request starts, including on retry. When a result comes back, check that the
+view still wants it before showing it.
+
+These exercises use timers and canned answers instead of a network, so the
+checks can move a simulated clock and get the same result every time. After
+this chapter comes [quiz 5](../quizzes/README.md), a search box built on GPUI
+Base's text input.
+
+## Further information
+
+- [Task: how execution moves between threads](https://gpui-kit.com/docs/task/#how-execution-moves-between-threads)
+- [Task: move heavy work off the UI thread](https://gpui-kit.com/docs/task/#move-heavy-work-off-the-ui-thread)
+- [Task: handle completion, failure and cancellation](https://gpui-kit.com/docs/task/#handle-completion-failure-and-cancellation)
+- [GPUI Kit's input component](https://gpui-kit.com/component/input), for quiz 5

@@ -1,23 +1,12 @@
-//! 10 — Observe a model
-//!
-//! An entity does not have to render anything. Reading stores data; its parent
-//! view observes it. cx.observe runs when that model calls notify. It signals
-//! that something changed, without an event payload: read the current model.
-//!
-//! Goal: make the mirrored reading follow the model, including external updates.
-//! In the observer, read Reading through the supplied entity and copy its value
-//! into mirrored. The stored Subscription keeps the observer connected. Call
-//! notify on the observer's context so the parent also refreshes.
-//!
-//! Example — Observing another entity:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let subscription = cx.observe(&model, |this, model, cx| {
-//!     this.label = model.read(cx).label.clone();
-//!     cx.notify();
-//! });
-//! // Store subscription in the view so this observer remains active.
-//! ```
+// An entity doesn't have to render anything. `Reading` is just data, a *model*,
+// and the panel shows a copy of its value. To keep that copy up to date, the
+// panel observes the model: `cx.observe(&model, callback)` runs the callback
+// every time the model calls `notify`.
+//
+// The callback is only told *that* the model changed, not what changed. It
+// does get the observed entity, though, so read the current value from there.
+// Observing returns a `Subscription`, and the observer only runs while that
+// value is kept, which is why the panel stores it in a field.
 
 use crate::theme::button;
 use gpui_kit::{Context, Entity, IntoElement, Render, Subscription, Window, div, prelude::*};
@@ -37,8 +26,8 @@ impl ObservePanel {
         // `observe` runs this closure each time `reading` notifies. It receives
         // this panel (`this`), the observed entity (`reading`) and the context.
         let observation = cx.observe(&reading, |this, reading, cx| {
-            // TODO: Copy the model's current value into `mirrored`. The callback
-            // carries no value of its own: read it with `reading.read(cx)`.
+            // TODO: `mirrored` is always reset to 0. Copy the model's current
+            // value into it instead.
             this.mirrored = 0;
             cx.notify();
         });

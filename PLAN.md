@@ -74,28 +74,30 @@ and [catalog](https://github.com/rust-lang/rustlings/blob/main/rustlings-macros/
 
 ## Remaining work, in order
 
-The numbered core path through lesson 38 is implemented. The three earlier
-bridges and optional extensions remain in [lesson-plan.md](lesson-plan.md);
-inserting bridges into saved progress needs an explicit migration.
+The numbered core path through lesson 42 is implemented. The two remaining
+bridges and optional extensions remain in [lesson-plan.md](lesson-plan.md).
+Saved progress is keyed by exercise name, so a new lesson can go anywhere; a
+renamed or reused name needs a version bump and an entry in `guide/src/state.rs`.
 
 1. **Finish the layout chapter.**
    - [x] Lesson 06: consistent pixel spacing with rendered-bounds checks.
-   - [x] Lesson 16: responsive structure at multiple window sizes.
-   - [x] Lesson 17: scrollable content under a fixed heading.
-   - [x] Lessons 18–20: control states, pointer gesture, and a compact inspector checkpoint.
+   - [x] Lesson 21: responsive structure at multiple window sizes.
+   - [x] Lesson 22: scrollable content under a fixed heading.
+   - [x] Lessons 23–25: control states, pointer gesture, and a compact inspector quiz.
    - [ ] Empty visual states as a learner exercise.
 2. **Extend entities and contexts.**
    - [x] Lessons 07–11: contexts, handlers, parent/child updates, observers, and event subscriptions.
    - [x] Check that state updates reach the original child and model changes reach observers.
-   - [x] Lesson 14: strong versus weak entity ownership.
-   - [x] Lesson 23: `cx.defer` across a borrow boundary.
+   - [x] Lesson 17: strong versus weak entity ownership.
+   - [x] Lesson 18: `cx.defer` across a borrow boundary.
+   - [x] Quizzes 1–2 (12, 20): build a view from a description; debug an inbox's handles, observer, subscription and task.
 3. **Teach actions, focus, and keyboard navigation.**
-   - [x] Lessons 12–13: bind a named action, move focus deliberately, test key-driven behavior.
-   - [x] Lessons 21–22: multiple focus regions and action propagation.
-   - [x] Lesson 24: command menu checkpoint with keyboard selection and cancellation.
+   - [x] Lessons 13–16: move focus, handle a key, bind an action, scope it with a key context.
+   - [x] Lessons 26–27: multiple focus regions and action propagation.
+   - [x] Lesson 28: command menu quiz with keyboard selection and cancellation.
    - [ ] Natural Tab traversal through multiple regions.
 4. **Async work.**
-   - [x] Lesson 15: loading, task retention, and cancellation without blocking the UI.
+   - [x] Lesson 19: loading, task retention, and cancellation without blocking the UI.
    - [x] Background computation and recoverable error/retry flows.
    - [x] Out-of-order requests and stale-result protection.
    - [x] Searchable-results checkpoint with typed input and keyboard selection.
@@ -119,7 +121,7 @@ inserting bridges into saved progress needs an explicit migration.
 ## Exercise contract
 
 Every behavior exercise must change visible app behavior, have a narrow automated
-check, and explain its GPUI concept. Lesson 35 instead asks the learner to write
+check, and explain its GPUI concept. Lesson 39 instead asks the learner to write
 the interaction test for a working view. A broken exercise must not prevent
 launch. Starter tests intentionally fail. Test reference fixes in an isolated
 copy, preserving the user's exercise code. Add new lesson metadata to

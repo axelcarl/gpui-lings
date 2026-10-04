@@ -1,20 +1,10 @@
-//! 04 — Compose a row with flex
-//!
-//! progress_strip returns an element tree. The parent div owns the layout;
-//! its two children are numbered squares. Flex is enabled, but its direction
-//! currently stacks the children vertically.
-//!
-//! Goal: put tile 02 to the right of tile 01, at the same height.
-//! Change the parent's flex direction. The check measures rendered bounds.
-//! Explore a different gap afterward: direction and spacing are separate.
-//!
-//! Example — Composing a parent and its children:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! div().flex().gap_2()
-//!     .child(div().child("First"))
-//!     .child(div().child("Second"))
-//! ```
+// Here's a strip with two numbered tiles. In GPUI, a parent element decides
+// where its children go: `.flex()` turns on flexbox layout, and the flex
+// direction says whether the children flow across (a row) or down (a column).
+// The tiles themselves don't need to know anything about it.
+//
+// After the check passes, try a different `gap_*` on the parent. Direction and
+// spacing are separate decisions.
 
 use crate::theme::colors;
 use gpui_kit::{IntoElement, div, prelude::*, px};

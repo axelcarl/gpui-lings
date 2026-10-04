@@ -1,21 +1,11 @@
-//! 19 — Route a pointer gesture
-//!
-//! A drag has a beginning, movement, and an end. The mouse may be released
-//! outside the element where the drag began, so the gesture must clean up on
-//! both the inside and outside release paths.
-//!
-//! Goal: drag the value track left or right, then release outside it. The value
-//! should update only while the button is held, and the track should return to
-//! its idle state after release. Add the missing outside-release cleanup.
-//!
-//! Example — Routing mouse movement to the view:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! div().on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-//!     this.pointer = event.position;
-//!     cx.notify();
-//! }))
-//! ```
+// A drag has three parts: the mouse button goes down, the pointer moves, and
+// the button comes back up. Each part has its own handler, and each runs with
+// the view, as `cx.listener` arranges. The release doesn't have to happen over
+// the element where the drag began. If the user lets go somewhere else, the
+// drag has to end anyway, or the control stays stuck in its dragging state.
+//
+// This time you write most of the gesture. Try it in the preview: drag along
+// the track, let go over it, then drag again and let go outside it.
 
 use crate::theme::colors;
 use gpui_kit::{
@@ -68,13 +58,7 @@ impl Render for DragPanel {
                     .bg(c.muted)
                     .border_1()
                     .border_color(c.border)
-                    .child(
-                        div()
-                            .h_full()
-                            .w(relative(f32::from(self.value) / 100.0))
-                            .rounded_full()
-                            .bg(c.primary),
-                    )
+                    // The drag begins: remember where, and the value at the time.
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(|this, event: &MouseDownEvent, _, cx| {
@@ -82,21 +66,21 @@ impl Render for DragPanel {
                             cx.notify();
                         }),
                     )
-                    .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _, cx| {
-                        this.move_pointer(event.position.x, cx);
-                    }))
-                    // `on_mouse_up` hears releases over the track only.
-                    .on_mouse_up(
-                        MouseButton::Left,
-                        cx.listener(|this, _, _, cx| {
-                            this.drag_start = None;
-                            cx.notify();
-                        }),
-                    )
-                    // `on_mouse_up_out` hears releases everywhere else.
-                    // TODO: Releasing outside the track must end the drag too:
-                    // clear `drag_start` and notify, like the handler above.
-                    .on_mouse_up_out(MouseButton::Left, cx.listener(|this, _, _, cx| {})),
+                    // TODO: The track only notices the button going down, so the
+                    // value never moves and the drag never ends. Finish the
+                    // gesture with three more handlers, shaped like the one above:
+                    // - `on_mouse_move`: pass the pointer's x position to
+                    //   `move_pointer`. Its event is a `MouseMoveEvent`.
+                    // - `on_mouse_up`: a release over the track ends the drag.
+                    // - `on_mouse_up_out`: so does a release anywhere else.
+                    // The filled part of the track shows the value.
+                    .child(
+                        div()
+                            .h_full()
+                            .w(relative(f32::from(self.value) / 100.0))
+                            .rounded_full()
+                            .bg(c.primary),
+                    ),
             )
             .child(
                 div()
@@ -130,7 +114,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_19(cx: &mut TestAppContext) {
+    fn exercise_24(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(|_, _| DragPanel::default());
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let track = cx.debug_bounds("drag-track").expect("track missing");
@@ -141,27 +125,37 @@ mod tests {
         cx.update(|_, cx| {
             assert!(
                 panel.read(cx).value > 25,
-                "movement should change the value"
+                "moving while the button is down should change the value"
             );
             assert!(panel.read(cx).drag_start.is_some(), "drag should be active");
         });
+        cx.simulate_mouse_up(moved, MouseButton::Left, Modifiers::default());
+        cx.update(|_, cx| {
+            assert!(
+                panel.read(cx).drag_start.is_none(),
+                "releasing over the track must end the drag"
+            )
+        });
 
+        cx.simulate_mouse_down(middle, MouseButton::Left, Modifiers::default());
         let outside = gpui::point(track.right() + px(30.0), middle.y);
         cx.simulate_mouse_up(outside, MouseButton::Left, Modifiers::default());
         cx.update(|_, cx| {
             assert!(
                 panel.read(cx).drag_start.is_none(),
-                "outside release must end the drag"
+                "releasing outside the track must end the drag too"
             )
         });
         let released_value = cx.update(|_, cx| panel.read(cx).value);
-        cx.simulate_mouse_move(middle, None, Modifiers::default());
-        cx.update(|_, cx| {
+        cx.simulate_mouse_move(moved, None, Modifiers::default());
+        cx.update(|window, cx| {
             assert_eq!(
                 panel.read(cx).value,
                 released_value,
-                "idle movement must not change value"
-            )
+                "moving after the release must not change the value"
+            );
+            window.draw(cx).clear(cx);
         });
+        assert!(cx.debug_bounds("drag-idle").is_some());
     }
 }

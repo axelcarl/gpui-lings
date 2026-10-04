@@ -1,23 +1,12 @@
-//! 13 — Move keyboard focus deliberately
-//!
-//! FocusHandle identifies a place in the window's focus tree. track_focus
-//! attaches it to an element. A Context can create the handle, but Window
-//! decides where keyboard events go: window.focus(&handle, cx) moves focus.
-//!
-//! Goal: Focus pad must move focus to the key pad; pressing X then counts.
-//! The pad is already attached to self.pad and handles X. Add the missing
-//! Window call in the button's handler. Tab focus on the button itself is not
-//! focus on the pad. Blurring the window must stop the pad receiving keys.
-//! The playground restarts after every save with nothing focused, so click
-//! Focus pad again in the new window. The pad shows whether it has focus.
-//!
-//! Example — Creating and attaching a focus handle:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let field = cx.focus_handle();
-//! window.focus(&field, cx);
-//! div().track_focus(&field).child("Keyboard target")
-//! ```
+// Keyboard input goes to whichever element has *focus*. A `FocusHandle` names
+// one place in the window that can have focus, and `track_focus` attaches it to
+// an element. Creating a handle doesn't focus anything, though. Focus belongs
+// to the window, so you move it with `window.focus(&handle, cx)`.
+//
+// The pad below counts the X key, but only while it has focus itself. Pressing
+// Tab can focus the Focus pad button, and that isn't the pad. Every save opens
+// a fresh preview window with nothing focused, so click Focus pad again after
+// each change.
 
 use crate::theme::{button, colors, focus_ring};
 use gpui_kit::{Context, FocusHandle, IntoElement, Render, Window, div, prelude::*, px};
@@ -47,9 +36,8 @@ impl Render for FocusPanel {
                 button("focus-pad-button", "Focus pad", true)
                     .debug_selector(|| "focus-pad-button".into())
                     .on_click(cx.listener(|this, _, window, cx| {
-                        // TODO: Move keyboard focus to the pad. The Window decides
-                        // where keys go: call `window.focus(...)` with `this.pad`
-                        // and `cx`.
+                        // TODO: Move keyboard focus to the pad, so it receives X.
+                        // This listener gets the `window` that can do that.
                     })),
             )
             .child(
@@ -57,13 +45,14 @@ impl Render for FocusPanel {
                     .id("key-pad")
                     .track_focus(&self.pad)
                     .debug_selector(|| "key-pad".into())
-                    .w(px(220.0))
+                    .w(px(280.0))
                     .p_4()
                     .border_1()
                     .border_color(colors().border)
                     .rounded_lg()
                     .text_center()
                     // Draw a ring while the pad has focus.
+                    .bg(colors().card)
                     .focus(focus_ring)
                     // Key events go to the focused element, then its ancestors.
                     .on_key_down(cx.listener(|this, event: &gpui_kit::KeyDownEvent, _, cx| {

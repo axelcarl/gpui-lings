@@ -1,21 +1,13 @@
-//! 30 — Share application state
-//!
-//! A GPUI Global belongs to the application, not to one view. A control can
-//! change it through App, and another entity can read the same value in its
-//! render method. To repaint when the global changes, that entity observes
-//! the global and keeps the returned Subscription alive.
-//!
-//! Goal: clicking Toggle spacing switches both child views to Compact, then
-//! back to Comfortable. The summary already reads the global; keep its
-//! observer connected so changes trigger its render.
-//!
-//! Example — Observing an application-wide setting:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let subscription = cx.observe_global::<Settings>(|_, cx| cx.notify());
-//! let compact = cx.global::<Settings>().compact;
-//! // Keep subscription in the view that renders compact.
-//! ```
+// A `Global` is state that belongs to the whole app rather than to one view.
+// Any context can read it with `cx.global::<T>()` and change it with
+// `cx.global_mut::<T>()`. Here, one child changes a spacing setting, and
+// another child shows it.
+//
+// Reading a global doesn't subscribe to it, though. A view that should redraw
+// when a global changes observes it with `cx.observe_global::<T>(...)` and,
+// like `observe` and `subscribe` in lessons 10 and 11, keeps the `Subscription`
+// that call returns. In this small window the summary happens to redraw with
+// the control anyway, so the check counts how often its observer runs.
 
 use crate::theme::button;
 use gpui_kit::{
@@ -136,7 +128,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_30(cx: &mut TestAppContext) {
+    fn exercise_34(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(|_, cx| SharedPanel::new(cx));
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let toggle = cx.debug_bounds("shared-toggle").unwrap();

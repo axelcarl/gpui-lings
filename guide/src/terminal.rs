@@ -276,18 +276,14 @@ fn statement(source: &str, line: usize, column: usize) -> Vec<&str> {
 /// Shorten only known workspace paths; keep rustc's colors, gutters and hints.
 fn short_paths(text: &str) -> String {
     let mut text = text.replace(&format!("{}/", crate::root().display()), "");
+    // The playground includes each exercise with `#[path]` from
+    // playground/src/exercises/mod.rs, so rustc reports it relative to there.
     for lesson in &LESSONS {
-        if let Some(group) = lesson
-            .test
-            .strip_prefix("exercises::")
-            .and_then(|t| t.split("::").next())
-        {
-            for prefix in ["playground/", ""] {
-                text = text.replace(
-                    &format!("{prefix}src/exercises/{group}/../../../../{}", lesson.file),
-                    lesson.file,
-                );
-            }
+        for prefix in ["playground/", ""] {
+            text = text.replace(
+                &format!("{prefix}src/exercises/../../../{}", lesson.file),
+                lesson.file,
+            );
         }
     }
     text
@@ -372,7 +368,13 @@ impl<'a> TestFailure<'a> {
     }
 }
 
+/// Wraps each line of `value` to `width`, keeping its line breaks so that
+/// multi-paragraph hints stay apart. A line that fits keeps its indentation.
+/// Links are never split, so terminals can still open them.
 pub fn wrap(value: &str, width: usize) -> Vec<String> {
+    if value.contains('\n') {
+        return value.lines().flat_map(|line| wrap(line, width)).collect();
+    }
     if value.chars().count() <= width {
         return vec![value.to_owned()];
     }
@@ -384,6 +386,10 @@ pub fn wrap(value: &str, width: usize) -> Vec<String> {
         }
         if !line.is_empty() {
             line.push(' ');
+        }
+        if word.starts_with("https://") || word.starts_with("http://") {
+            line.push_str(word);
+            continue;
         }
         for character in word.chars() {
             if line.chars().count() == width {
@@ -500,12 +506,9 @@ mod tests {
 
     #[test]
     fn compiler_diagnostics_and_unfamiliar_failures_remain_intact() {
-        let diagnostic = "\x1b[1;31merror[E0425]\x1b[0m: missing value\n  --> src/exercises/views/../../../../exercises/02_views/views1.rs:4:5\n  |\n4 | bad()\n  | ^^^\nhelp: use another value";
+        let diagnostic = "\x1b[1;31merror[E0425]\x1b[0m: missing value\n  --> src/exercises/../../../exercises/02_views/views1.rs:4:5\n  |\n4 | bad()\n  | ^^^\nhelp: use another value";
         let rendered = plain_terminal(80).diagnostic(CheckState::BuildError, diagnostic);
-        assert_eq!(
-            rendered,
-            diagnostic.replace("src/exercises/views/../../../../", "")
-        );
+        assert_eq!(rendered, diagnostic.replace("src/exercises/../../../", ""));
         let unknown = "test failed with an unfamiliar panic format\nkeep this detail";
         assert_eq!(
             plain_terminal(80).diagnostic(CheckState::Failed, unknown),
@@ -525,10 +528,10 @@ mod tests {
     #[test]
     fn progress_matches_rustlings_and_fits_a_small_terminal() {
         let progress = plain_terminal(32).progress(6);
-        assert!(progress.ends_with("]   6/38"), "{progress}");
+        assert!(progress.ends_with("]   6/42"), "{progress}");
         assert_eq!(progress.chars().count(), 32);
-        assert!(plain_terminal(32).progress(usize::MAX).ends_with("38/38"));
-        assert_eq!(plain_terminal(20).progress(6), "Progress: 6/38");
+        assert!(plain_terminal(32).progress(usize::MAX).ends_with("42/42"));
+        assert_eq!(plain_terminal(20).progress(6), "Progress: 6/42");
     }
 
     #[test]
@@ -544,5 +547,21 @@ mod tests {
         let lines = wrap(text, 12);
         assert!(lines.iter().all(|line| line.chars().count() <= 12));
         assert_eq!(lines.join("").replace(' ', ""), text.replace(' ', ""));
+    }
+
+    #[test]
+    fn wrapping_keeps_paragraphs_and_indented_lines() {
+        let text = "First paragraph wraps here.\n\n    code();\nSee https://example.com/docs";
+        assert_eq!(
+            wrap(text, 16),
+            [
+                "First paragraph",
+                "wraps here.",
+                "",
+                "    code();",
+                "See",
+                "https://example.com/docs"
+            ]
+        );
     }
 }

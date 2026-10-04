@@ -1,24 +1,12 @@
-//! 14 — Check a weak handle before using it
-//!
-//! Cloning Entity<T> keeps its state alive. WeakEntity<T> remembers its identity
-//! without owning it. upgrade() returns Some(Entity<T>) while an owner exists,
-//! and None once it is gone. This is useful for back-references and callbacks
-//! that should not keep a closed view alive. Never unwrap a weak upgrade blindly.
-//!
-//! Goal: Inspect target must show Available, then Released after Release target.
-//! Use the weak handle to obtain an optional strong handle inside inspect.
-//! The temporary strong handle should live only for the inspection. Repeated
-//! inspections after release must be harmless. Reset preview recreates the owner.
-//!
-//! Example — Safely accessing a weak entity:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let weak = model.downgrade();
-//! if let Some(model) = weak.upgrade() {
-//!     let label = model.read(cx).label.clone();
-//!     println!("{label}");
-//! }
-//! ```
+// A strong `Entity<T>` keeps its state alive. A `WeakEntity<T>` only remembers
+// which entity it points at, without keeping it alive. That's what you want
+// for a back-reference, or for a callback that shouldn't keep a closed view
+// around.
+//
+// Before you use a weak handle, call `upgrade()`. It returns `Some(entity)`
+// while an owner still holds the entity, and `None` once the last strong
+// handle is gone. Try it in the preview: inspect, release the target, then
+// inspect again.
 
 use crate::theme::button;
 use gpui_kit::{Context, Entity, IntoElement, Render, WeakEntity, Window, div, prelude::*};
@@ -42,9 +30,7 @@ impl WeakPanel {
     }
     fn inspect(&mut self, cx: &mut Context<Self>) {
         // TODO: A weak handle exists even after its record is released, so
-        // wrapping it in `Some` proves nothing. Call `upgrade()` on
-        // `self.target` instead: it returns `Some(Entity<Record>)` while an
-        // owner still holds the record, and `None` once it has been released.
+        // wrapping it in `Some` proves nothing. Upgrade it instead.
         let record = Some(&self.target);
         self.status = if record.is_some() {
             "Available"
@@ -91,7 +77,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_14(cx: &mut TestAppContext) {
+    fn exercise_17(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(|_, cx| WeakPanel::new(cx));
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let inspect = cx.debug_bounds("weak-inspect").unwrap();

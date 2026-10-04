@@ -10,8 +10,6 @@ use state::LessonState;
 use preview::{PreviewState, Refresh};
 
 use lessons::{LESSONS, Lesson, Verifier};
-#[cfg(test)]
-use lessons::{progress_index, progress_value};
 use std::{
     collections::hash_map::DefaultHasher,
     env, fs,
@@ -558,7 +556,7 @@ fn lesson_index(id: &str) -> Option<usize> {
 
 fn print_usage() {
     println!(
-        "\n  ./gpui-lings                Start the session\n  ./gpui-lings <lesson>       Start the session at a lesson, e.g. 12 or interaction1\n  ./gpui-lings list           List exercises\n  ./gpui-lings check [ID]     Check all exercises, or one\n  ./gpui-lings hint [ID] [N]  Show a hint, or its Nth level\n  ./gpui-lings reset ID       Reset an exercise (stashes your changes with git)\n  ./gpui-lings app [ID]       Preview an exercise\n\n  In a session, press a key: n next, h hint, l list, c check all, x reset, q quit.\n"
+        "\n  ./gpui-lings                Start the session\n  ./gpui-lings <lesson>       Start the session at a lesson, e.g. 14 or keyboard2\n  ./gpui-lings list           List exercises\n  ./gpui-lings check [ID]     Check all exercises, or one\n  ./gpui-lings hint [ID] [N]  Show a hint, or its Nth level\n  ./gpui-lings reset ID       Reset an exercise (stashes your changes with git)\n  ./gpui-lings app [ID]       Preview an exercise\n\n  In a session, press a key: n next, h hint, l list, c check all, x reset, q quit.\n"
     );
 }
 
@@ -598,7 +596,9 @@ fn execute(args: &[String]) -> Result<ExitCode, String> {
                 None => 1,
             };
             let more = format!("Run ./gpui-lings hint {} {}", l.id, level + 1);
-            let text = l.hint(level - 1, &more).replace('\n', "\n  ");
+            // Indented by two columns, so wrap two columns short of the width.
+            let width = ui.width().saturating_sub(2).max(20);
+            let text = terminal::wrap(&l.hint(level - 1, &more), width).join("\n  ");
             println!("\n  {} / {}\n\n  {text}\n", l.id, l.title);
             Ok(ExitCode::SUCCESS)
         }
@@ -854,42 +854,6 @@ mod tests {
     }
 
     #[test]
-    fn saved_progress_is_forward_compatible() {
-        assert_eq!(progress_index("complete"), 5);
-        assert_eq!(progress_index("complete:05"), 5);
-        assert_eq!(progress_index("complete:06"), 6);
-        assert_eq!(progress_index("complete:15"), 15);
-        assert_eq!(progress_index("complete:16"), 16);
-        assert_eq!(progress_index("complete:17"), 17);
-        assert_eq!(progress_index("complete:18"), 18);
-        assert_eq!(progress_index("complete:19"), 19);
-        assert_eq!(progress_index("complete:20"), 20);
-        assert_eq!(progress_index("complete:21"), 21);
-        assert_eq!(progress_index("complete:22"), 22);
-        assert_eq!(progress_index("complete:23"), 23);
-        assert_eq!(progress_index("complete:24"), 24);
-        assert_eq!(progress_index("complete:25"), 25);
-        assert_eq!(progress_index("complete:26"), 26);
-        assert_eq!(progress_index("complete:27"), 27);
-        assert_eq!(progress_index("complete:28"), 28);
-        assert_eq!(progress_index("complete:29"), 29);
-        assert_eq!(progress_index("complete:30"), 30);
-        assert_eq!(progress_index("complete:31"), 31);
-        assert_eq!(progress_index("complete:32"), 32);
-        assert_eq!(progress_index("complete:33"), 33);
-        assert_eq!(progress_index("complete:34"), 34);
-        assert_eq!(progress_index("complete:35"), 35);
-        assert_eq!(progress_index("complete:36"), 36);
-        assert_eq!(progress_index("complete:37"), 37);
-        assert_eq!(progress_index("complete:38"), LESSONS.len());
-        assert_eq!(progress_index("04\n"), 3);
-        assert_eq!(progress_index("garbage"), 0);
-        for index in 0..=LESSONS.len() {
-            assert_eq!(progress_index(&progress_value(index)), index);
-        }
-    }
-
-    #[test]
     fn empty_test_filter_is_never_a_pass() {
         assert_eq!(
             evaluate_output(true, "running 0 tests\ntest result: ok.".into()).state,
@@ -926,18 +890,30 @@ mod tests {
     }
 
     #[test]
-    fn catalog_references_source_instructions_and_tests() {
+    fn catalog_references_sources_and_tests() {
         for (i, lesson) in LESSONS.iter().enumerate() {
             assert_eq!(lesson.id, format!("{:02}", i + 1));
             let source = fs::read_to_string(root().join(lesson.file)).unwrap();
-            let instructions = lessons::instructions(&source);
-            assert!(instructions.contains(lesson.id));
-            assert!(instructions.contains("Example —"));
+            // Every exercise opens with an introduction, as in Rustlings.
+            assert!(
+                source.starts_with("// "),
+                "{} needs an introduction",
+                lesson.file
+            );
             assert_eq!(Path::new(lesson.file).file_stem().unwrap(), lesson.name);
             assert_eq!(selected_lesson(Some(lesson.name)).unwrap(), i);
             assert_eq!(lesson_index(&(i + 1).to_string()), Some(i));
             assert_eq!(lesson_index(lesson.id), Some(i));
             assert!(source.contains(lesson.test.rsplit("::").next().unwrap()));
+            // Lightweight checks compile the file alone with rustc, so its tests
+            // sit at the crate root; native ones run inside the playground.
+            let expected = match lesson.verifier {
+                Verifier::Lightweight => format!("tests::exercise_{}", lesson.id),
+                Verifier::Native => {
+                    format!("exercises::{}::tests::exercise_{}", lesson.name, lesson.id)
+                }
+            };
+            assert_eq!(lesson.test, expected, "{} runs the wrong test", lesson.name);
             assert!(lesson.hints.iter().all(|hint| !hint.is_empty()));
             assert!(!lesson.hints.is_empty());
         }
@@ -961,17 +937,6 @@ mod tests {
         let last = format!("Hint {count} of {count}: {}", layered.hints[count - 1]);
         assert_eq!(layered.hint(count - 1, "h again"), last);
         assert_eq!(layered.hint(count + 4, "h again"), last);
-    }
-
-    #[test]
-    fn source_instructions_stop_before_code_and_tests() {
-        let source =
-            "//! 07 — Notify\n//!\n//! A short explanation.\n\nfn code() {}\n//! Not instructions.";
-        assert_eq!(
-            lessons::instructions(source),
-            "07 — Notify\n\nA short explanation."
-        );
-        assert_eq!(lessons::instructions("fn code() {}"), "");
     }
 
     #[test]

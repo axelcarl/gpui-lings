@@ -1,21 +1,10 @@
-//! 16 — Adapt a layout to window width
-//!
-//! A Render implementation receives the current Window. Its bounds can guide
-//! which element tree to build each frame. This panel chooses a row for a wide
-//! window and a column for a narrow one, while the parent still owns the layout.
-//!
-//! Goal: place the cards side by side in a wide window and stack them in a
-//! narrow window. The wide layout already works. Fix the narrow branch below.
-//! Resize the playground to see both arrangements. The check measures rendered
-//! card bounds at both sizes and after resizing back.
-//!
-//! Example — Reading the available width:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let width = window.bounds().size.width;
-//! let label = if width < px(600.0) { "Compact" } else { "Wide" };
-//! div().child(label)
-//! ```
+// `render` gets the `Window` as well, so a view can look at the window's size
+// and build a different element tree for it. GPUI renders again after every
+// resize, so the choice is made fresh each time.
+//
+// This panel puts its two cards side by side in a wide window, and should
+// stack them in a narrow one. The wide layout already works. Resize the
+// preview window across the breakpoint to see both.
 
 use crate::theme::colors;
 use gpui_kit::{Context, IntoElement, Render, Window, div, prelude::*, px};
@@ -66,7 +55,7 @@ mod tests {
     use gpui::TestAppContext;
 
     #[gpui::test]
-    fn exercise_16(cx: &mut TestAppContext) {
+    fn exercise_21(cx: &mut TestAppContext) {
         let (_, cx) = cx.add_window_view(|_, _| ResponsivePanel);
         for (width, should_stack) in [(960.0, false), (640.0, true), (960.0, false)] {
             cx.simulate_resize(gpui::size(px(width), px(560.0)));

@@ -1,29 +1,13 @@
-//! 17 — Keep content usable in a small window
-//!
-//! A fixed-height panel needs its own scrollable area when its content grows.
-//! Keep the heading outside that area so it stays visible while the rows move.
-//! GPUI's overflow modes decide what happens to content that doesn't fit:
-//! overflow_hidden() clips it, while overflow_x_scroll(), overflow_y_scroll()
-//! and overflow_scroll() clip it but let the user scroll it into view. A
-//! scrolling element needs an id, because GPUI keeps its offset between frames.
-//!
-//! A ScrollHandle is that offset, shared with your view. Once an element tracks
-//! it with track_scroll, code can read the position or move it, as the Jump to
-//! last button does with scroll_to_item.
-//!
-//! Goal: make the list scroll vertically, so its last row can be reached with
-//! the mouse wheel or trackpad, and make Jump to last work. The heading must stay
-//! still. The check scrolls the list, then presses Jump to last.
-//!
-//! Example — Keeping a scroll handle across renders:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let scroll = ScrollHandle::new(); // Store in a view field.
-//! div().id("rows").h(px(200.0)).overflow_y_scroll().track_scroll(&scroll)
-//!     .children((0..50).map(|i| div().child(format!("Row {i}"))))
-//! // Later, for example in a click handler:
-//! scroll.scroll_to_item(49);
-//! ```
+// When there's more content than room, an element's overflow mode decides what
+// happens to the rest. `overflow_hidden()` clips it out of sight.
+// `overflow_y_scroll()`, `overflow_x_scroll()` and `overflow_scroll()` clip it
+// too, but let the user scroll to it. A scrolling element needs an `id`, so
+// GPUI can remember how far it has scrolled from one frame to the next.
+//
+// To scroll from code, keep a `ScrollHandle` in your view and attach it to the
+// element with `track_scroll`. Then a button can move the list, as Jump to last
+// does with `scroll_to_item`. The heading sits outside the list, so it should
+// stay put while the rows move.
 
 use crate::theme::{button, colors};
 use gpui_kit::{Context, IntoElement, Render, ScrollHandle, Window, div, prelude::*, px};
@@ -99,7 +83,7 @@ mod tests {
     }
 
     #[gpui::test]
-    fn exercise_17(cx: &mut TestAppContext) {
+    fn exercise_22(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(|_, _| ScrollingPanel::default());
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let heading = cx.debug_bounds("scroll-heading").expect("heading missing");

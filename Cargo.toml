@@ -19,8 +19,8 @@ name = "gpui-lings-playground"
 path = "playground/src/main.rs"
 
 [[example]]
-name = "lesson29"
-path = "playground/examples/lesson29.rs"
+name = "application1"
+path = "playground/examples/application1.rs"
 
 [dependencies]
 # Kit pins a compatible Zed GPUI snapshot. The course starts with GPUI APIs;

@@ -1,29 +1,12 @@
-//! 08 — Connect a handler to its view
-//!
-//! An element's on_click callback receives an event, Window, and App. It does
-//! not receive your view. cx.listener adapts a method into that callback: GPUI
-//! retrieves the entity and gives the method &mut Self and Context<Self>.
-//!
-//! Goal: wire the button to ListenerPanel::record_click using cx.listener.
-//! The method already updates state and notifies. Replace the empty callback;
-//! do not move the state into the element or capture &mut self across renders.
-//! Each click should increase the displayed count once, including after redraw.
-//!
-//! Example — Adapting methods and closures with cx.listener:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! fn clear(&mut self, _: &ClickEvent, _: &mut Window, cx: &mut Context<Self>) {
-//!     self.clicks = 0;
-//!     cx.notify();
-//! }
-//! // Inside render, cx is &mut Context<Self>:
-//! button("clear", "Clear", false).on_click(cx.listener(Self::clear))
-//! // A closure gets the same four arguments (view, event, window, context):
-//! button("clear-inline", "Clear", false).on_click(cx.listener(|this, _, _, cx| {
-//!     this.clicks = 0;
-//!     cx.notify();
-//! }))
-//! ```
+// An element's `on_click` callback gets three arguments: the click event, the
+// window and the app. Your view isn't one of them, so a plain closure can't
+// change the view's fields. `cx.listener(...)` fixes that. It wraps a closure,
+// or a method, that takes the view (`&mut Self`) and its `Context<Self>`, and
+// turns it into the callback `on_click` expects. When the click comes, GPUI
+// looks up the view and hands it to your code.
+//
+// You've seen `cx.listener` wrap closures in lessons 05 and 07. It accepts a
+// method with the same four arguments too, like `record_click` below.
 
 use crate::theme::button;
 use gpui_kit::{ClickEvent, Context, IntoElement, Render, Window, div, prelude::*};
@@ -56,8 +39,8 @@ impl Render for ListenerPanel {
                     .debug_selector(|| "listener-record".into())
                     // An element callback only receives `|event, window, app|`,
                     // so it can't reach this view on its own.
-                    // TODO: Replace the empty callback with `cx.listener(...)`
-                    // wrapped around this view's `record_click` method.
+                    // TODO: Clicking does nothing yet. Make the click call
+                    // this view's `record_click` method instead.
                     .on_click(|_, _, _| {}),
             )
     }

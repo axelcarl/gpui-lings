@@ -1,22 +1,10 @@
-//! 27 — Ignore stale results
-//!
-//! Async requests can finish in a different order from the one in which they
-//! started. Keep a generation or selection key with each request, then check
-//! it when the result returns to the entity. An old request must not replace
-//! the view's newer choice. WeakEntity updates also let a released view go.
-//!
-//! Goal: selecting Slow, then Fast, should leave Fast visible even after Slow
-//! completes. Guard the completion with the current selection. Both tasks are
-//! retained deliberately so the check exercises out-of-order completion.
-//!
-//! Example — Associating work with the request that started it:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! self.generation += 1;
-//! let request_id = self.generation;
-//! // Capture request_id in the task and compare it on completion.
-//! // Only the current generation may replace the displayed result.
-//! ```
+// Async requests don't always finish in the order they started. Click Slow and
+// then Fast: Fast answers first, and then Slow arrives and replaces it, even
+// though Fast was your latest choice.
+//
+// The fix is to remember which request a result belongs to, and check that the
+// view still wants it when it comes back. Here, each task already knows its
+// `label`, and the panel remembers your latest choice in `selected`.
 
 use crate::theme::button;
 use gpui_kit::{Context, IntoElement, Render, Task, Window, div, prelude::*};
@@ -94,7 +82,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_27(cx: &mut TestAppContext) {
+    fn exercise_31(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(|_, _| StalePanel::default());
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let slow = cx.debug_bounds("stale-slow").unwrap();

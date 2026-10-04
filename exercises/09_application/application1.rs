@@ -1,25 +1,12 @@
-//! 29 — Start a standalone GPUI app
-//!
-//! The playground gives every earlier lesson an application and window. A
-//! standalone program must create those itself. GPUI Kit's application()
-//! supplies the platform Application; init() registers its shared layers;
-//! open_window() installs a root view in the first window. The separate
-//! `playground/examples/lesson29.rs` entrypoint calls run_standalone(); run it
-//! with `cargo run --example lesson29`.
-//!
-//! Goal: Open workspace should create a new window containing WorkspaceRoot.
-//! Replace the placeholder in open_workspace with gpui_kit::open_window,
-//! build WorkspaceRoot in its closure, and return the root entity. The native
-//! preview button uses the same function; the starter playground still runs.
-//!
-//! Example — Installing a root view in a new window:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let (_, root) = gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
-//!     cx.new(|_| WelcomeView)
-//! })?;
-//! // WelcomeView implements Render; root is its Entity handle.
-//! ```
+// Until now, the playground has created the application and the window for
+// every lesson. A standalone GPUI program does that itself:
+// `gpui_kit::application()` creates the platform application, `init` sets up
+// GPUI Kit, and `open_window` opens a window with a root view in it.
+//
+// `run_standalone` below is a complete program, except that `open_workspace`
+// doesn't open anything yet. The preview's Open workspace button calls the same
+// function. You can also run the program by itself with
+// `cargo run --example application1`.
 
 use crate::theme::button;
 use gpui_kit::{App, Context, Entity, IntoElement, Render, Window, WindowOptions, div, prelude::*};
@@ -46,9 +33,8 @@ pub fn open_workspace(cx: &mut App) -> Option<Entity<WorkspaceRoot>> {
     // `gpui_kit::open_window(options, cx, build)` opens a window, then calls
     // `build` with that window and `cx` to create its root view entity. It
     // returns a Result holding the window's handle and that root entity.
-    // TODO: No window opens yet. Call `gpui_kit::open_window` with
-    // `WindowOptions::default()`, build a WorkspaceRoot in its closure, and
-    // return the root entity. `.ok()` turns the Result into an Option.
+    // TODO: No window opens yet. Open one whose root view is a
+    // `WorkspaceRoot`, and return that root entity.
     None
 }
 
@@ -115,7 +101,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_29(cx: &mut TestAppContext) {
+    fn exercise_33(cx: &mut TestAppContext) {
         cx.update(gpui_kit::init);
         let (panel, cx) = cx.add_window_view(|_, _| StartupPanel::default());
         cx.update(|window, cx| window.draw(cx).clear(cx));

@@ -1,32 +1,11 @@
-//! 34 — Expose an accessible control
-//!
-//! Screen readers and other assistive technology don't read pixels. GPUI
-//! describes the window to them as an accessibility tree, built with the
-//! AccessKit library: one node per control, with a role (what it is), a name
-//! (what it's called) and a state (such as on or off).
-//!
-//! GPUI Base's unstyled Switch supplies the Switch role, toggled state, and
-//! pointer/keyboard activation. Application code still needs to give it a
-//! meaningful name. A child label is visible, but it is not a substitute for
-//! the control's accessible label. Keep the checked value in the owning view.
-//!
-//! Goal: give the Alerts switch the name "Enable alerts". Its AccessKit node
-//! should expose that label together with Switch and the current toggled
-//! state. Click and Space must still change the value.
-//!
-//! Example — Naming an accessible control:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let view = cx.weak_entity();
-//! Switch::new("notifications").checked(self.notifications)
-//!     .accessibility_label("Receive notifications")
-//!     .on_change(move |enabled, _, _, cx| {
-//!         let _ = view.update(cx, |view, cx| {
-//!             view.notifications = enabled;
-//!             cx.notify();
-//!         });
-//!     })
-//! ```
+// Screen readers don't read pixels. GPUI describes the window to them as an
+// accessibility tree, built with the AccessKit library: one node per control,
+// with a role (what it is), a name (what it's called) and a state (such as on
+// or off).
+//
+// GPUI Base's unstyled `Switch` gives you the role, the state, and activation
+// by mouse and keyboard. The name has to come from you. The text inside the
+// switch doesn't count: it's a visible child, not the switch's label.
 
 use crate::theme::colors;
 // GPUI Base's Switch brings behavior and accessibility, but no look of its own.
@@ -51,10 +30,8 @@ impl AccessibilityPanel {
         Switch::new("alerts-switch")
             // The value to show, and to expose as the toggled state.
             .checked(enabled)
-            // TODO: The switch exposes its role and toggled state, but no name:
-            // the "Alerts on"/"Alerts off" text below is a visible child, not
-            // the label a screen reader announces for the control. Name it
-            // "Enable alerts" with Switch's `accessibility_label` method.
+            // TODO: The switch has no name for a screen reader to announce.
+            // Name it "Enable alerts" with Switch's `accessibility_label` method.
             .on_change(on_change)
             // Everything from here on is the app's own styling.
             .w(px(220.0))
@@ -71,7 +48,7 @@ impl AccessibilityPanel {
 impl Render for AccessibilityPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // `control` takes a plain callback that isn't tied to this view, so it
-        // reaches the view through a weak handle (lesson 14).
+        // reaches the view through a weak handle (lesson 17).
         let weak = cx.weak_entity();
         div()
             .flex()
@@ -136,7 +113,7 @@ mod tests {
     }
 
     #[gpui::test]
-    fn exercise_34(cx: &mut TestAppContext) {
+    fn exercise_38(cx: &mut TestAppContext) {
         let (panel, window) = cx.add_window_view(|_, _| AccessibilityPanel::default());
         window.update(|window, cx| window.draw(cx).clear(cx));
         let control = window.debug_bounds("alerts-control").unwrap();

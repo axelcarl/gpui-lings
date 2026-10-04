@@ -12,7 +12,7 @@ use gpui_kit::*;
 use gpui_lings_shared::preview::{PreviewState, Refresh};
 use lessons::LESSONS;
 use std::{path::PathBuf, time::Duration};
-use theme::{MONO, Variant, alpha, badge, button, button_base, code, colors, icon};
+use theme::{MONO, Variant, alpha, button_base, code, colors, icon};
 
 /// The terminal's latest check of the current lesson.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,15 +46,14 @@ impl Status {
 struct Playground {
     index: usize,
     completed: usize,
-    count: u32,
     status: Status,
     refresh: Refresh,
     _preview_updates: Option<Task<()>>,
     _bounds: Option<Subscription>,
     /// GPUI_LINGS_APPEARANCE=light|dark overrides the system appearance.
     forced_appearance: Option<WindowAppearance>,
-    toggle: Entity<exercises::views::entity::TogglePanel>,
-    advanced: Option<AnyView>,
+    /// The current lesson's own view, recreated by Reset.
+    lesson_view: Option<AnyView>,
     _appearance: Subscription,
 }
 
@@ -97,14 +96,12 @@ impl Playground {
         Self {
             index,
             completed,
-            count: 0,
             status,
             refresh: Refresh::Current,
             _preview_updates: updates,
             _bounds: None,
             forced_appearance,
-            toggle: cx.new(|_| exercises::views::entity::TogglePanel::new()),
-            advanced: exercises::advanced_preview(index, window, cx),
+            lesson_view: lesson_view(index, window, cx),
             _appearance: cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
         }
     }
@@ -276,9 +273,7 @@ impl Playground {
                     .child(icon(icons::ROTATE_CCW).text_color(c.foreground))
                     .child("Reset")
                     .on_click(cx.listener(|this, _, window, cx| {
-                        this.advanced = exercises::advanced_preview(this.index, window, cx);
-                        this.count = 0;
-                        this.toggle = cx.new(|_| exercises::views::entity::TogglePanel::new());
+                        this.lesson_view = lesson_view(this.index, window, cx);
                         cx.notify();
                     })),
             )
@@ -296,64 +291,8 @@ impl Playground {
             .gap_5()
             .min_h(px(280.0))
             .p_8();
-        match self.index {
-            0 => {
-                canvas = canvas.child(
-                    div()
-                        .debug_selector(|| "exercise-01".into())
-                        .text_size(px(36.0))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .child(exercises::basics::greeting::welcome_text()),
-                );
-            }
-            1 | 2 => {
-                canvas = canvas.child(
-                    div()
-                        .debug_selector(|| "counter-panel".into())
-                        .flex()
-                        .flex_col()
-                        .items_center()
-                        .gap_4()
-                        .child(
-                            div()
-                                .text_size(px(48.0))
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .line_height(relative(1.0))
-                                .child(self.count.to_string()),
-                        )
-                        .child(
-                            button("increment-button", "Increase count", true)
-                                .debug_selector(|| "increment-button".into())
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    // Each lesson can be previewed independently of previous solutions.
-                                    if this.index == 1 {
-                                        exercises::basics::counter::increment(&mut this.count);
-                                    } else {
-                                        this.count = this.count.saturating_add(1);
-                                    }
-                                    cx.notify();
-                                })),
-                        ),
-                );
-                if self.index == 2 {
-                    canvas = canvas.child(
-                        badge(false)
-                            .debug_selector(|| "milestone-panel".into())
-                            .px_3()
-                            .py_1()
-                            .text_sm()
-                            .child(exercises::basics::milestone::milestone_text(self.count)),
-                    );
-                }
-            }
-            3 => canvas = canvas.child(exercises::views::layout::progress_strip()),
-            4 => canvas = canvas.child(self.toggle.clone()),
-            5 => canvas = canvas.child(exercises::views::spacing::spaced_tiles()),
-            _ => {
-                if let Some(view) = &self.advanced {
-                    canvas = canvas.child(view.clone());
-                }
-            }
+        if let Some(view) = &self.lesson_view {
+            canvas = canvas.child(view.clone());
         }
         let tone = self.status_tone();
         div()
@@ -465,6 +404,11 @@ impl Playground {
     }
 }
 
+fn lesson_view(index: usize, window: &mut Window, cx: &mut App) -> Option<AnyView> {
+    let lesson = LESSONS.get(index)?;
+    exercises::preview(lesson.name, window, cx)
+}
+
 impl Render for Playground {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         theme::use_appearance(
@@ -505,7 +449,7 @@ pub fn run() {
     let index = if id == "complete" {
         LESSONS.len()
     } else {
-        lessons::progress_index(&id)
+        lessons::index_of(&id)
     };
     let status = Status::parse(&std::env::var("GPUI_LINGS_STATUS").unwrap_or_default());
     let completed = std::env::var("GPUI_LINGS_COMPLETED")
@@ -558,7 +502,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{Playground, Status};
+    use super::{LESSONS, Playground, Status};
     use crate::theme::colors;
     use gpui::{Context, Modifiers, TestAppContext, Window};
 
@@ -661,46 +605,6 @@ mod tests {
     }
 
     #[gpui::test]
-    fn greeting_stage_hides_future_exercises(cx: &mut TestAppContext) {
-        let (_, cx) = cx.add_window_view(|window, cx| view(0, window, cx));
-        cx.update(|window, cx| window.draw(cx).clear(cx));
-        assert!(cx.debug_bounds("exercise-01").is_some());
-        for selector in [
-            "counter-panel",
-            "milestone-panel",
-            "step-one",
-            "toggle-button",
-            "spacing-tile-0",
-        ] {
-            assert!(cx.debug_bounds(selector).is_none(), "unexpected {selector}");
-        }
-    }
-
-    #[gpui::test]
-    fn layout_stage_shows_only_layout_work(cx: &mut TestAppContext) {
-        let (_, cx) = cx.add_window_view(|window, cx| view(3, window, cx));
-        cx.update(|window, cx| window.draw(cx).clear(cx));
-        assert!(cx.debug_bounds("step-one").is_some());
-        assert!(cx.debug_bounds("exercise-01").is_none());
-        assert!(cx.debug_bounds("counter-panel").is_none());
-        assert!(cx.debug_bounds("toggle-button").is_none());
-    }
-
-    #[gpui::test]
-    fn milestone_preview_does_not_depend_on_counter_solution(cx: &mut TestAppContext) {
-        let (view, cx) = cx.add_window_view(|window, cx| view(2, window, cx));
-        cx.update(|window, cx| window.draw(cx).clear(cx));
-        let button = cx.debug_bounds("increment-button").unwrap();
-        for _ in 0..3 {
-            cx.simulate_click(button.center(), Modifiers::default());
-        }
-        cx.update(|_, cx| assert_eq!(view.read(cx).count, 3));
-        let reset = cx.debug_bounds("reset-preview").unwrap();
-        cx.simulate_click(reset.center(), Modifiers::default());
-        cx.update(|_, cx| assert_eq!(view.read(cx).count, 0));
-    }
-
-    #[gpui::test]
     fn minimum_window_fits_progress_status_and_preview(cx: &mut TestAppContext) {
         let (_, cx) = cx.add_window_view(|window, cx| view(5, window, cx));
         cx.simulate_resize(gpui::size(gpui::px(640.0), gpui::px(560.0)));
@@ -726,71 +630,91 @@ mod tests {
         );
     }
 
+    /// An element unique to each lesson's preview.
+    const PREVIEW_SELECTORS: [(&str, &str); 42] = [
+        ("basics1", "exercise-01"),
+        ("basics2", "increment-button"),
+        ("basics3", "milestone-increment"),
+        ("views1", "step-one"),
+        ("views2", "toggle-button"),
+        ("views3", "spacing-tile-0"),
+        ("contexts1", "notify-enable"),
+        ("contexts2", "listener-record"),
+        ("contexts3", "update-child"),
+        ("contexts4", "observe-increment"),
+        ("contexts5", "event-send"),
+        ("quiz1", ""),
+        ("keyboard1", "focus-pad-button"),
+        ("keyboard2", "stepper"),
+        ("keyboard3", "likes-like"),
+        ("keyboard4", "action-focus"),
+        ("lifetimes1", "weak-inspect"),
+        ("lifetimes2", "deferred-queue"),
+        ("lifetimes3", "task-load"),
+        ("quiz2", "inbox-receive"),
+        ("layout_states1", "responsive-card-0"),
+        ("layout_states2", "scroll-viewport"),
+        ("layout_states3", "state-toggle"),
+        ("layout_states4", "drag-track"),
+        ("quiz3", "inspector-list"),
+        ("dispatch1", "regions-open"),
+        ("dispatch2", "route-focus-child"),
+        ("quiz4", "menu-launcher"),
+        ("async1", "background-start"),
+        ("async2", "retry-load"),
+        ("async3", "stale-slow"),
+        ("quiz5", "search-input"),
+        ("application1", "startup-open"),
+        ("application2", "shared-toggle"),
+        ("application3", "persist-toggle"),
+        ("application4", "windows-open"),
+        ("application5", "appearance-switch"),
+        ("quality1", "alerts-control"),
+        ("quality2", "behavior-load"),
+        ("quality3", "large-viewport"),
+        ("quality4", "setting-first"),
+        ("quiz6", "workspace-load"),
+    ];
+
     #[gpui::test]
-    fn advanced_previews_open_visible_and_reset_independently(cx: &mut TestAppContext) {
-        let selectors = [
-            "notify-enable",
-            "listener-record",
-            "update-child",
-            "observe-increment",
-            "event-send",
-            "action-focus",
-            "focus-pad-button",
-            "weak-inspect",
-            "task-load",
-            "responsive-card-0",
-            "scroll-viewport",
-            "state-toggle",
-            "drag-track",
-            "inspector-list",
-            "regions-open",
-            "route-focus-child",
-            "deferred-queue",
-            "menu-launcher",
-            "background-start",
-            "retry-load",
-            "stale-slow",
-            "search-input",
-            "startup-open",
-            "shared-toggle",
-            "persist-toggle",
-            "windows-open",
-            "appearance-switch",
-            "alerts-control",
-            "behavior-load",
-            "large-viewport",
-            "setting-first",
-            "workspace-load",
-        ];
-        for (offset, selector) in selectors.iter().enumerate() {
-            let index = offset + 6;
+    fn every_lesson_previews_alone_and_resets_to_fresh_state(cx: &mut TestAppContext) {
+        for (index, lesson) in LESSONS.iter().enumerate() {
+            let (name, selector) = PREVIEW_SELECTORS[index];
+            assert_eq!(name, lesson.name, "selectors follow the course order");
             let (view, cx) = cx.add_window_view(|window, cx| view(index, window, cx));
             cx.simulate_resize(gpui::size(gpui::px(640.0), gpui::px(560.0)));
             cx.update(|window, cx| window.draw(cx).clear(cx));
-            assert!(
-                cx.debug_bounds(selector).is_some(),
-                "missing preview for {selector}"
-            );
-            for other in selectors.iter().filter(|other| *other != selector) {
+            // Quiz 1 starts empty: the learner builds its view.
+            if !selector.is_empty() {
                 assert!(
-                    cx.debug_bounds(other).is_none(),
-                    "unexpected preview for {other}"
+                    cx.debug_bounds(selector).is_some(),
+                    "missing preview for {name}"
                 );
             }
-            let previous = cx.update(|_, cx| view.read(cx).advanced.as_ref().unwrap().entity_id());
+            for (other, other_selector) in PREVIEW_SELECTORS {
+                if other != name && !other_selector.is_empty() {
+                    assert!(
+                        cx.debug_bounds(other_selector).is_none(),
+                        "{name} shows {other}'s preview"
+                    );
+                }
+            }
+            let previous =
+                cx.update(|_, cx| view.read(cx).lesson_view.as_ref().unwrap().entity_id());
             let reset = cx.debug_bounds("reset-preview").unwrap();
             assert!(reset.bottom() <= gpui::px(560.0), "reset must be reachable");
             cx.simulate_click(reset.center(), Modifiers::default());
             cx.update(|window, cx| {
                 assert_ne!(
-                    view.read(cx).advanced.as_ref().unwrap().entity_id(),
+                    view.read(cx).lesson_view.as_ref().unwrap().entity_id(),
                     previous,
-                    "reset must create fresh state for lesson {}",
-                    index + 1
+                    "reset must create fresh state for {name}"
                 );
                 window.draw(cx).clear(cx);
             });
-            assert!(cx.debug_bounds(selector).is_some());
+            if !selector.is_empty() {
+                assert!(cx.debug_bounds(selector).is_some());
+            }
         }
     }
 

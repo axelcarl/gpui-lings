@@ -1,32 +1,19 @@
-//! 22 — Route a nested action
-//!
-//! Actions travel through the focused element's tree. A child can handle an
-//! action locally or leave it for an ancestor. An action handler consumes the
-//! action by default; a child that declines it must explicitly propagate it.
-//!
-//! Goal: Ctrl-R counts once in the child while local handling is enabled.
-//! With local handling off, the same key should reach the parent. The action,
-//! binding, focus handles, and fallback are already present. Let the action
-//! continue only when the child declines it.
-//!
-//! Example — Letting an ancestor handle a command:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! fn save(&mut self, _: &Save, _: &mut Window, cx: &mut Context<Self>) {
-//!     if self.read_only {
-//!         cx.propagate();
-//!         return;
-//!     }
-//!     self.save_document();
-//! }
-//! ```
+// An action starts at the focused element and travels up through its parents
+// until a handler takes it. Here, the child panel handles `RouteCommand`
+// itself, and the parent handles it as a fallback. Running a handler
+// *consumes* the action by default, so it stops there. A handler that decides
+// not to deal with it has to say so with `cx.propagate()`, and then the action
+// continues to the next handler up.
+//
+// Focus the child and press Ctrl-R. Then press Use parent and try again: now
+// the parent should count it.
 
 use crate::theme::{button, colors};
 use gpui_kit::{
     Context, FocusHandle, IntoElement, KeyBinding, Render, Window, actions, div, prelude::*,
 };
 
-// Declares the RouteCommand action, as in lesson 12.
+// Declares the RouteCommand action, as in lesson 15.
 actions!(gpui_lings_routes, [RouteCommand]);
 
 pub struct PropagationPanel {
@@ -58,9 +45,8 @@ impl PropagationPanel {
     // An action travels from the focused element up through its ancestors.
     // While focus is inside the child, the child's handler gets it first.
     fn route_in_child(&mut self, _: &RouteCommand, _: &mut Window, cx: &mut Context<Self>) {
-        // TODO: With local handling off, this handler does nothing, yet the
-        // action still stops here: running a handler consumes it by default.
-        // In that case, call `cx.propagate()` so it continues to the parent.
+        // TODO: With local handling off, this handler does nothing, but the
+        // action still stops here. In that case, let it continue to the parent.
         if self.child_enabled {
             self.child_calls += 1;
             cx.notify();
@@ -155,7 +141,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_22(cx: &mut TestAppContext) {
+    fn exercise_27(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(|_, cx| PropagationPanel::new(cx));
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let child = cx

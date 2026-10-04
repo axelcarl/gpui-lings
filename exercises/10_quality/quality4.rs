@@ -1,33 +1,12 @@
-//! 37 — Compose a reusable component
-//!
-//! A reusable control should take its value, disabled state, label, and change
-//! handler as inputs. The parent view owns each value. GPUI Base's Switch
-//! handles accessible interaction, while this small wrapper applies the course
-//! theme and passes changes back to the owner. Three child views use it: two
-//! live switches and a disabled example.
-//!
-//! Switch is a controlled component: it keeps no value of its own. Each render
-//! tells it the current value with checked(...), and when the user activates
-//! it, on_change receives the opposite of that value for the owner to store.
-//!
-//! Goal: both live switches turn on and off independently. The starter wrapper
-//! draws its colors and text from its checked input, but gives the Switch a
-//! constant value, so every click asks for "on" again. Pass that input through
-//! while keeping the disabled example inert.
-//!
-//! Example — Passing controlled state back to its owner:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let view = cx.weak_entity();
-//! setting_switch("sound", "Sound", self.sound, false,
-//!     move |enabled, _, _, cx| {
-//!         let _ = view.update(cx, |view, cx| {
-//!             view.sound = enabled;
-//!             cx.notify();
-//!         });
-//!     })
-//! // The wrapper reads its inputs each render; the parent retains the value.
-//! ```
+// A reusable control takes everything it shows as input: its value, whether
+// it's disabled, its label, and a callback for changes. The view that uses it
+// owns the value. Here, `setting_switch` wraps GPUI Base's `Switch` in the
+// course theme, and three tiles use it.
+//
+// `Switch` is a *controlled* component: it keeps no value of its own. Each
+// render tells it the current value with `checked(...)`, and when the user
+// activates it, `on_change` receives the opposite of that value for the owner
+// to store. Try both live switches, and the disabled one.
 
 use crate::theme::colors;
 use gpui_kit::base::Switch;
@@ -53,7 +32,7 @@ fn setting_switch(
         .checked(false)
         // While disabled, the Switch ignores clicks and keys and can't be focused.
         .disabled(disabled)
-        // The name a screen reader announces (lesson 34).
+        // The name a screen reader announces (lesson 38).
         .accessibility_label(label)
         .on_change(on_change)
         // The course theme. The colors and text already follow `checked`.
@@ -151,7 +130,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_37(cx: &mut TestAppContext) {
+    fn exercise_41(cx: &mut TestAppContext) {
         let (panel, window) = cx.add_window_view(|_, cx| ReusablePanel::new(cx));
         window.update(|window, cx| window.draw(cx).clear(cx));
         let first = window.debug_bounds("setting-first").unwrap();

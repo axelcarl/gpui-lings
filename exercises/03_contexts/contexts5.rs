@@ -1,73 +1,80 @@
-//! 11 — Keep an event subscription alive
-//!
-//! notify means "this entity changed"; emit sends a typed event with a payload.
-//! EventEmitter<E> declares which event an entity emits. A parent can subscribe
-//! without teaching the child anything about its parent. Dropping Subscription
-//! disconnects the callback; store it for the lifetime of the receiving view.
-//!
-//! Goal: each Send signal click delivers its sequence number to the parent.
-//! The child already emits Signal and the callback already handles it. Keep the
-//! returned subscription in _subscription instead of dropping it. Observe is
-//! not a substitute: it cannot carry the Signal payload.
-//!
-//! Example — Sending and receiving typed events:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! impl EventEmitter<Message> for Model {}
-//! // Inside a Model update:
-//! cx.emit(Message { text: "Hello".into() });
-//! // Inside the receiving view constructor:
-//! let subscription = cx.subscribe(&model, |this, _, event: &Message, cx| {
-//!     this.label = event.text.clone();
-//!     cx.notify();
-//! });
-//! // Store subscription in a field of the receiving view.
-//! ```
+// `notify` says "I changed". Sometimes the receiver needs to know *what*
+// happened, too. An entity declares each kind of event it emits with
+// `impl EventEmitter<Signal> for Sender {}`, and sends one with `cx.emit(...)`.
+// Anyone can listen with `cx.subscribe`, and the sender never needs to know
+// who is listening. A subscription's callback names the one event type it
+// wants, so a view that cares about two kinds of event subscribes twice.
+//
+// Like `observe`, `subscribe` returns a `Subscription`, and dropping it
+// disconnects the callback. The panel below subscribes to `Signal` events but
+// drops the subscription, and it doesn't listen for `Cleared` at all.
 
 use crate::theme::button;
 use gpui_kit::{
     Context, Entity, EventEmitter, IntoElement, Render, Subscription, Window, div, prelude::*,
 };
 
+// Sent by Send signal, with how many signals have been sent so far.
 pub struct Signal(pub usize);
+// Sent by Clear. It carries nothing: the event itself is the news.
+pub struct Cleared;
+
 #[derive(Default)]
 pub struct Sender {
     sent: usize,
 }
-// Declares that Sender emits Signal events, which allows `cx.emit(Signal(..))`.
+// Declares the events Sender emits, which allows `cx.emit(Signal(..))` and
+// `cx.emit(Cleared)`.
 impl EventEmitter<Signal> for Sender {}
+impl EventEmitter<Cleared> for Sender {}
 impl Render for Sender {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        button("event-send", "Send signal", true)
-            .debug_selector(|| "event-send".into())
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.sent += 1;
-                cx.emit(Signal(this.sent));
-                cx.notify();
-            }))
+        div()
+            .flex()
+            .gap_2()
+            .child(
+                button("event-send", "Send signal", true)
+                    .debug_selector(|| "event-send".into())
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.sent += 1;
+                        cx.emit(Signal(this.sent));
+                        cx.notify();
+                    })),
+            )
+            .child(
+                button("event-clear", "Clear", false)
+                    .debug_selector(|| "event-clear".into())
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.sent = 0;
+                        cx.emit(Cleared);
+                        cx.notify();
+                    })),
+            )
     }
 }
 
 pub struct EventsPanel {
     sender: Entity<Sender>,
     received: usize,
-    _subscription: Option<Subscription>,
+    _subscriptions: Vec<Subscription>,
 }
 impl EventsPanel {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let sender = cx.new(|_| Sender::default());
-        // `subscribe` connects this panel to the sender's Signal events and
+        // `subscribe` connects this panel to the sender's `Signal` events and
         // returns a Subscription. The connection lasts as long as that value.
-        let subscription = cx.subscribe(&sender, |this, _, signal: &Signal, cx| {
+        let signals = cx.subscribe(&sender, |this, _, signal: &Signal, cx| {
             this.received = signal.0;
             cx.notify();
         });
+        // TODO: Clear empties the sender, but the panel never hears about it.
+        // Subscribe to `Cleared` events too, and set `received` back to 0.
         Self {
             sender,
             received: 0,
-            // TODO: With `None`, `subscription` is dropped when `new` returns,
-            // which disconnects the callback. Keep it in the panel instead.
-            _subscription: None,
+            // TODO: Nothing is kept here, so every subscription is dropped when
+            // `new` returns, which disconnects it. Keep them all in the panel.
+            _subscriptions: Vec::new(),
         }
     }
 }
@@ -105,20 +112,30 @@ mod tests {
                 assert_eq!(
                     panel.read(cx).received,
                     expected,
-                    "retain the subscription to receive the child's event"
+                    "keep the Signal subscription to receive the child's event"
                 )
             });
         }
         let sender = cx.update(|_, cx| panel.read(cx).sender.clone());
         sender.update(cx, |_, cx| cx.emit(Signal(42)));
-        cx.update(|window, cx| {
+        cx.update(|_, cx| {
             assert_eq!(
                 panel.read(cx).received,
                 42,
                 "use the payload, not a local click count"
+            )
+        });
+
+        let clear = cx.debug_bounds("event-clear").unwrap();
+        cx.simulate_click(clear.center(), Modifiers::default());
+        cx.update(|window, cx| {
+            assert_eq!(
+                panel.read(cx).received,
+                0,
+                "subscribe to Cleared, and set received back to 0"
             );
             window.draw(cx).clear(cx);
         });
-        assert!(cx.debug_bounds("received-42").is_some());
+        assert!(cx.debug_bounds("received-0").is_some());
     }
 }

@@ -1,37 +1,41 @@
-# Ship-quality GPUI · 34–37, then quiz 4
+# Ship-quality GPUI
 
-[34 · Expose an accessible control](../../exercises/10_quality/quality1.rs)
-uses GPUI Base's unstyled Switch. It supplies the Switch role, toggled state,
-and keyboard activation, while application code provides the accessible name.
-The headless check inspects the resulting AccessKit node and activates the
-control by pointer and keyboard.
+The last chapter is about what separates a working view from one you'd ship:
+it's usable without a mouse or a screen, it's tested, it stays fast with lots
+of data, and its pieces can be reused.
 
-After solving it, inspect the switch with a screen reader on your platform.
-The automated check cannot confirm the spoken announcement or focus order in
-a native assistive technology session.
+**Accessibility.** GPUI describes the window to screen readers as an
+accessibility tree: one node per control, with a role, a name and a state. GPUI
+Base's unstyled controls, such as `Switch`, supply the role, state and keyboard
+behavior. The name has to come from you, with `accessibility_label`. After
+lesson 38, try the switch with your platform's screen reader: the automated
+check can't hear what it announces.
 
-[35 · Test behavior through GPUI](../../exercises/10_quality/quality2.rs)
-puts the learner in the test author role. The view works already; complete the
-headless test by sending a click, checking the loading render, advancing the
-simulated clock, and checking the ready render. GPUI's test executor controls
-time, so the check never waits for wall-clock time.
+**Testing.** A `#[gpui::test]` drives a view like a user would, on a simulated
+clock that only moves when the test says so:
 
-[36 · Render a large collection efficiently](../../exercises/10_quality/quality3.rs)
-uses GPUI Base's virtual list. Its callback receives the visible range of
-indices. Construct only those rows; building all 1,000 and then selecting the
-range still wastes work. The check measures constructed rows, scrolls to the
-last record, and confirms selection remains attached to its stable row ID.
+```rust
+cx.simulate_click(button.center(), Modifiers::default());
+cx.executor().advance_clock(Duration::from_secs(1));
+cx.run_until_parked();
+```
 
-[37 · Compose a reusable component](../../exercises/10_quality/quality4.rs)
-wraps GPUI Base's switch with an explicit checked input, a change callback,
-disabled behavior, and theme colors. Separate child views own separate values.
-The check turns one on and off, toggles the other, and verifies that the
-disabled instance never changes.
+You've been reading checks like this since chapter 01. In lesson 39 you write
+one.
 
-[38 · Quiz 4 (capstone): small native workspace](../../exercises/quizzes/quiz4.rs)
-combines observed model entities, a responsive list and detail, a scoped Save
-action, focus, simulated async loading and retry, temporary persistence, and
-an accessible Save name. Five bugs are reported as symptoms instead of marked
-in the source. The check stops at the first symptom it sees, so fix them one at
-a time and confirm each in the native preview. Each fix reuses an earlier
-chapter: task lifetimes, retry state, breakpoints, entity reads, and focus.
+**Large collections.** A virtual list only builds the rows that are on screen.
+It knows every row's size up front and asks you for just the visible range.
+
+**Reusable components.** A reusable control takes its value as input and
+reports changes through a callback. The view that uses it owns the value, so two
+copies of the control never share state by accident.
+
+Last comes [quiz 6](../quizzes/README.md), the capstone, which draws on the
+whole course.
+
+## Further information
+
+- [Accessibility](https://gpui-kit.com/docs/accessibility/)
+- [Testing](https://gpui-kit.com/docs/test/)
+- [Virtual list](https://gpui-kit.com/component/virtual-list)
+- [RenderOnce: state belongs outside the component value](https://gpui-kit.com/docs/render-once/#state-belongs-outside-the-component-value)

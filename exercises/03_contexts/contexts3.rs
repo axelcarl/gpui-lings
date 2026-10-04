@@ -1,23 +1,11 @@
-//! 09 — Update the entity, not a copy
-//!
-//! Entity<T> is a handle to state owned by GPUI. Cloning the handle refers to
-//! the same entity; cloning the value returned by read creates separate data.
-//! Use entity.update(cx, |value, cx| ...) to mutate the original. The inner
-//! context belongs to that entity, so notify it after changing its state.
-//!
-//! Goal: make the parent button increment the child's score on every click.
-//! Replace the detached-copy block with an update of this.score. Keep score
-//! creation in new: creating it during render would reset it on each frame.
-//!
-//! Example — Reading and updating an entity:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let old_label = model.read(cx).label.clone();
-//! model.update(cx, |model, cx| {
-//!     model.label = format!("{old_label}!");
-//!     cx.notify();
-//! });
-//! ```
+// An `Entity<T>` is a handle to state that GPUI owns. Clone the handle and you
+// get a second handle to the *same* state. But `entity.read(cx)` gives you a
+// reference to the value itself, and cloning *that* makes a separate copy that
+// GPUI knows nothing about.
+//
+// To change the real thing, call `entity.update(cx, |value, cx| ...)`. GPUI
+// hands your closure a mutable reference to the value, along with that
+// entity's own context. That's the context to notify.
 
 use crate::theme::button;
 use gpui_kit::{Context, Entity, IntoElement, Render, Window, div, prelude::*};
@@ -44,6 +32,8 @@ pub struct UpdatePanel {
 impl UpdatePanel {
     pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
+            // Created once, here. Creating it in `render` would start a
+            // fresh score on every frame.
             score: cx.new(|_| Score::default()),
         }
     }
@@ -62,9 +52,9 @@ impl Render for UpdatePanel {
                     .on_click(cx.listener(|this, _, _, cx| {
                         // `read` borrows the score; `clone` then copies its value.
                         // TODO: This increments the copy and throws it away, so the
-                        // score on screen never changes. Change the entity itself:
-                        // `this.score.update(cx, |score, cx| ...)` gives you the
-                        // score and its context. Notify that context afterwards.
+                        // score on screen never changes. Update the entity itself,
+                        // and notify the score's context afterwards:
+                        //     this.score.update(cx, |score, cx| ???);
                         let mut detached = this.score.read(cx).clone();
                         detached.value += 1;
                     })),

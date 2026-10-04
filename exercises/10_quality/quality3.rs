@@ -1,23 +1,11 @@
-//! 36 — Render a large collection efficiently
-//!
-//! GPUI Base's virtual list is told the size of every row up front, so it can
-//! work out the scroll height and which rows are on screen without building
-//! any of them. Each frame, it then asks its callback for only that visible
-//! range of row indices. The starter builds every row first and then throws
-//! most of them away. That still allocates 1,000 elements on every frame. Keep
-//! the stable row IDs and selection behavior while building only the requested
-//! range.
-//!
-//! Goal: select a row, scroll to the last row, and keep the selection while
-//! constructing fewer than 40 rows for each frame of this small viewport.
-//!
-//! Example — Constructing only the requested range:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let visible = 20..30;
-//! let labels: Vec<_> = visible.map(|index| format!("Row {index}")).collect();
-//! // A virtual-list callback receives a range like this for the current viewport.
-//! ```
+// A list with a thousand rows doesn't need a thousand elements, only the few
+// that fit on screen. GPUI Base's virtual list knows every row's size up front,
+// so it can work out the scroll height and which rows are visible without
+// building any of them. On each frame, it asks its callback for just that
+// range of rows.
+//
+// This callback builds all 1,000 rows on every frame, then throws most of them
+// away. The list looks fine, but it does far more work than it needs to.
 
 use gpui_kit::base::{VirtualListScrollHandle, v_virtual_list};
 use gpui_kit::{Context, IntoElement, Render, Window, div, prelude::*, px, size};
@@ -132,7 +120,7 @@ mod tests {
     use gpui::{Modifiers, ScrollStrategy, TestAppContext};
 
     #[gpui::test]
-    fn exercise_36(cx: &mut TestAppContext) {
+    fn exercise_40(cx: &mut TestAppContext) {
         let (panel, window) = cx.add_window_view(|_, _| LargeListPanel::default());
         window.update(|window, cx| window.draw(cx).clear(cx));
         assert!(window.debug_bounds("large-row-0").is_some());

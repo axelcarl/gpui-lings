@@ -1,23 +1,13 @@
-//! 21 — Move between focus regions
-//!
-//! Focus belongs to the window. An overlay can have several focusable regions,
-//! but opening and closing it should leave the keyboard in a predictable place.
-//! Store handles for the caller and each region, then use Window to move focus.
-//!
-//! Goal: Open moves focus to the first pad, Move focus moves it to the second,
-//! and Close returns it to Open. The first two moves already work. Add the
-//! missing focus restoration when the overlay closes. The check also sends X
-//! to each pad and makes sure closed pads stop receiving keys.
-//!
-//! Example — Returning focus after dismissing an overlay:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! fn dismiss(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-//!     self.visible = false;
-//!     window.focus(&self.launcher, cx);
-//!     cx.notify();
-//! }
-//! ```
+// An overlay, such as a dialog or a menu, can have several places that take
+// keyboard focus. Opening and closing it should still leave the keyboard
+// somewhere predictable. A good habit: when an overlay closes, give focus back
+// to whatever opened it.
+//
+// This panel keeps a `FocusHandle` for the Open button and for each of the
+// overlay's two pads, and moves focus between them with `window.focus`, as in
+// lesson 13. Open and Move focus already work. There are two ways to close the
+// overlay, the Close button and the Escape key, and both should restore focus.
+// Try them with X in each pad.
 
 use crate::theme::{button, colors, focus_ring};
 use gpui_kit::{Context, FocusHandle, IntoElement, Render, Window, div, prelude::*, px};
@@ -38,7 +28,8 @@ pub struct RegionsPanel {
 impl RegionsPanel {
     pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
-            trigger: cx.focus_handle(),
+            // A Tab stop, so the keyboard can reach Open too.
+            trigger: cx.focus_handle().tab_stop(true),
             first: cx.focus_handle(),
             second: cx.focus_handle(),
             open: false,
@@ -72,6 +63,9 @@ impl Render for RegionsPanel {
             .when(self.open, |panel| {
                 panel.child(
                     div()
+                        // TODO: Escape should close the overlay too, and give
+                        // focus back to the Open button the same way Close does.
+                        // Keys the pads don't handle travel up to this element.
                         .flex()
                         .flex_col()
                         .items_center()
@@ -141,8 +135,7 @@ impl Render for RegionsPanel {
                                     // Hiding the overlay removes both pads from the tree.
                                     this.open = false;
                                     // TODO: Focus is still on a pad that is no longer
-                                    // drawn. Return it to the Open button: call
-                                    // `window.focus(...)` with `this.trigger` and `cx`.
+                                    // drawn. Return it to the Open button.
                                     cx.notify();
                                 })),
                         ),
@@ -159,7 +152,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_21(cx: &mut TestAppContext) {
+    fn exercise_26(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(|_, cx| RegionsPanel::new(cx));
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let open = cx.debug_bounds("regions-open").expect("Open missing");
@@ -181,7 +174,7 @@ mod tests {
             assert!(!panel.read(cx).open);
             assert!(
                 panel.read(cx).trigger.is_focused(window),
-                "restore caller focus"
+                "Close should give focus back to Open"
             );
             window.draw(cx).clear(cx);
         });
@@ -191,5 +184,19 @@ mod tests {
             assert_eq!(panel.read(cx).first_presses, 1);
             assert_eq!(panel.read(cx).second_presses, 1);
         });
+
+        // Open again, and leave with Escape this time.
+        cx.simulate_click(open.center(), Modifiers::default());
+        cx.simulate_keystrokes("x escape");
+        cx.update(|window, cx| {
+            assert_eq!(panel.read(cx).first_presses, 2);
+            assert!(!panel.read(cx).open, "Escape should close the overlay");
+            assert!(
+                panel.read(cx).trigger.is_focused(window),
+                "Escape should give focus back to Open"
+            );
+            window.draw(cx).clear(cx);
+        });
+        assert!(cx.debug_bounds("region-first").is_none());
     }
 }

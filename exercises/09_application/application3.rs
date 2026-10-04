@@ -1,24 +1,10 @@
-//! 31 — Save and restore a setting
-//!
-//! A setting can outlive the view that edits it when you write it to storage.
-//! This small exercise uses an injected temporary path rather than a user's
-//! real configuration directory. Save writes a plain value; Load should read
-//! it and fall back to Comfortable when the file is missing or invalid.
-//! A real app chooses its settings directory during startup.
-//!
-//! Goal: after saving Compact, changing to Comfortable, and loading again,
-//! the preview should return to Compact. Fill in load_setting using
-//! std::fs::read_to_string and treat anything except "compact" as the default.
-//!
-//! Example — Reading settings with a fallback:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let value = std::fs::read_to_string(path).unwrap_or_else(|_| "default".into());
-//! match value.trim() {
-//!     "large" => FontSize::Large,
-//!     _ => FontSize::Normal,
-//! }
-//! ```
+// A setting the user chose should survive a restart, so the app writes it to a
+// file and reads it back on startup. Reading can fail, though: the file may not
+// exist yet, or it may hold something unexpected. Either way, the app should
+// fall back to a sensible default instead of crashing.
+//
+// This panel saves to a temporary file, never your real settings. Try Save,
+// Toggle spacing, then Load. "Write invalid data" lets you test the fallback.
 
 use crate::theme::button;
 use gpui_kit::{Context, IntoElement, Render, Window, div, prelude::*};
@@ -35,10 +21,10 @@ static NEXT_STORE: AtomicUsize = AtomicUsize::new(0);
 // Returns the stored setting: true for Compact, false for Comfortable. The
 // panel calls it on startup (`at_path`) and when Load is clicked.
 fn load_setting(path: &Path) -> bool {
-    // TODO: This ignores the file and always returns Comfortable. Read it with
-    // `fs::read_to_string(path)`, which returns a Result: Err when the file is
-    // missing or unreadable. Return true only when the text, trimmed of
-    // whitespace, is "compact"; anything else means Comfortable.
+    // TODO: This ignores the file and always returns Comfortable. Read the
+    // file with `fs::read_to_string`, and return true only when its text,
+    // trimmed of whitespace, is "compact". Anything else means Comfortable,
+    // and so does a missing or unreadable file.
     false
 }
 
@@ -169,7 +155,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_31(cx: &mut TestAppContext) {
+    fn exercise_35(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(|_, _| PersistencePanel::default());
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let toggle = cx.debug_bounds("persist-toggle").unwrap();

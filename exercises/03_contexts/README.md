@@ -1,30 +1,48 @@
-# Contexts & handlers · 07–11
+# Contexts & handlers
 
-`cx` and `ctx` are variable names, not different types. Read the type to see
-what an operation can access:
+Almost every GPUI function takes a `cx`. It's a *context*: your way into the
+app's state. `cx` and `ctx` are just variable names, so look at the type to see
+what you can do with it:
 
 | Type | What it gives you |
 | --- | --- |
-| `App` | Application state and access to entities |
-| `Context<T>` | App access plus the identity of the entity being updated |
-| `Window` | Window-local state, input routing, layout, and focus |
-| `Entity<T>` | A strong handle to persistent state owned by GPUI |
-| `Subscription` | A connection that stays active while its handle lives |
+| `App` | The whole application: every entity, window and global |
+| `Context<T>` | Everything `App` has, plus the identity of the entity `T` being updated |
+| `Window` | One window: its size, focus and input |
+| `Entity<T>` | A handle to state that GPUI owns |
+| `Subscription` | A connection that stays active for as long as you keep it |
 
-An element callback receives the event, window, and app. `cx.listener` adapts
-that callback so your method also receives `&mut Self` and `Context<Self>`.
-Keep mutable borrows inside synchronous update closures; do not capture them
-in callbacks or keep them across `await`.
+GPUI owns the state of every entity. You reach it through a handle and a
+context, and you tell GPUI when it has changed:
 
-1. [07 · Notify](../../exercises/03_contexts/contexts1.rs): state changes need notification.
-2. [08 · Listener](../../exercises/03_contexts/contexts2.rs): connect a handler to its view.
-3. [09 · Update](../../exercises/03_contexts/contexts3.rs): mutate the entity behind the handle.
-4. [10 · Observe](../../exercises/03_contexts/contexts4.rs): react to another entity's notification and read its current value.
-5. [11 · Subscribe](../../exercises/03_contexts/contexts5.rs): receive a typed event payload and retain the connection.
+```rust
+let count = counter.read(cx).count;   // borrow the state
+counter.update(cx, |counter, cx| {    // change it
+    counter.count = count + 1;
+    cx.notify();                      // and say it changed
+});
+```
 
-`notify` announces a changed entity. `emit` sends a specific event. Neither
-replaces the other; choose according to what the receiver needs to know.
-Observers run as effects after the current update, not inline during mutation.
+An element's callbacks only get the event, the window and the app, not your
+view. `cx.listener(...)` wraps a closure or method that takes `&mut Self` and
+`Context<Self>`, so your handler can reach the view's fields.
 
-Reference: [GPUI entities, contexts, and events](https://github.com/zed-industries/zed/blob/main/crates/gpui/README.md).
-The exercises target the GPUI snapshot pinned by this repository's Cargo.lock.
+There are two ways for one entity to hear about another. `cx.observe` runs a
+callback whenever the other entity calls `notify`: it tells you *that* something
+changed. `cx.subscribe` runs a callback for every typed event the other entity
+`emit`s: it tells you *what* happened. Both return a `Subscription`, and the
+callback only runs while you keep it. Callbacks run after the current update
+has finished, never in the middle of it.
+
+After this chapter comes [quiz 1](../quizzes/README.md). There's nothing to fix
+in it: you write a small view from a description.
+
+## Further information
+
+- [Ownership and data flow in GPUI](https://zed.dev/blog/gpui-ownership): Zed's
+  own walkthrough of entities, contexts, `observe` and events. If you read one
+  thing alongside this course, read this.
+- [Context](https://gpui-kit.com/docs/context/)
+- [Entity](https://gpui-kit.com/docs/entity/)
+- [Event](https://gpui-kit.com/docs/event/)
+- [GPUI's guide to contexts](https://github.com/zed-industries/zed/blob/main/crates/gpui/docs/contexts.md)

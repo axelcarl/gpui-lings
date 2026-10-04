@@ -1,24 +1,11 @@
-//! 26 — Show errors and retry
-//!
-//! A view should expose loading, success, and recoverable error states instead
-//! of leaving an old error visible while a second request runs. This exercise
-//! uses an injected queue of responses so the check never needs a network.
-//! The first request fails; the next succeeds after an executor-controlled
-//! delay. Keep the Task in the view as in lesson 15.
-//!
-//! Goal: after Offline, pressing Retry should immediately show Loading and
-//! then display the returned report. Clear the old error before retrying.
-//!
-//! Example — Representing request states explicitly:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! enum RequestState { Loading, Ready(String), Error(String) }
-//! let label = match &self.request {
-//!     RequestState::Loading => "Loading",
-//!     RequestState::Ready(text) | RequestState::Error(text) => text.as_str(),
-//! };
-//! div().child(label.to_owned())
-//! ```
+// A request can be loading, done or failed, and the view should always show
+// which. This panel keeps that in a `LoadState` and renders from it. Its
+// "server" is a queue of canned answers, so nothing touches the network: the
+// first request fails with Offline, and the next one succeeds. Each answer
+// takes a second.
+//
+// Press Load, wait for Offline, then press Retry. Right now, the old error
+// stays on screen for the whole second the retry takes.
 
 use crate::theme::button;
 use gpui_kit::{Context, IntoElement, Render, Task, Window, div, prelude::*};
@@ -127,7 +114,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_26(cx: &mut TestAppContext) {
+    fn exercise_30(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(|_, _| RetryPanel::default());
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let load = cx.debug_bounds("retry-load").unwrap();

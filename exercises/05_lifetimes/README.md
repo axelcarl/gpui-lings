@@ -1,24 +1,47 @@
-# Lifetimes & async · 14–15
+# Lifetimes & async
 
-GPUI handles make ownership explicit. A strong `Entity<T>` keeps its value
-alive; a `WeakEntity<T>` does not. Upgrading a weak handle can fail once the
-last strong owner disappears, so handle the missing entity as normal control
-flow.
+An entity lives as long as something holds a strong `Entity<T>` handle to it. A
+`WeakEntity<T>`, from `entity.downgrade()`, points at the same entity without
+keeping it alive. Call `upgrade()` to get a strong handle back. It returns
+`None` once the entity is gone, so treat that as a normal case, not an error.
 
-- [14 · Weak handles](../../exercises/05_lifetimes/lifetimes1.rs): inspect before and after the owner is released.
-- [15 · Tasks](../../exercises/05_lifetimes/lifetimes2.rs): retain a task while loading, then cancel it by dropping its handle.
+Weak handles come up whenever code runs *later*, when the view it belongs to
+may already be gone. This chapter has two kinds of later.
 
-`Context::spawn` gives the future a weak entity and an `AsyncApp`. After an
-`await`, use the handle's update closure to regain synchronous access to state.
-A foreground task must yield while waiting; blocking work belongs on the
-background executor. This exercise uses an async timer, so no network is needed.
+**Later in this update.** While GPUI runs your handler, your view is mutably
+borrowed, so you can't update it again through its handle until the handler
+returns. `cx.defer(...)` runs a closure right after the current update ends.
+Take `cx.weak_entity()` to reach the view from there.
 
-Dropping a `Task` cancels it. Retaining it gives the view control over its
-lifetime; `detach` intentionally gives up that cancellation handle. Replacing
-a stored task cancels the previous load, and releasing the view drops its task.
+**Later in time.** `cx.spawn` returns a `Task`, and the work only runs for as
+long as you keep that task. Dropping it cancels the work. Store it in your view
+to tie the work to the view, or call `.detach()` when it should finish no
+matter what.
 
-The check advances a simulated clock and verifies both completion and
-cancellation. Real error/retry flows and background computation remain future
-exercises.
+```rust
+self.refresh = Some(cx.spawn(async move |this, cx| {
+    cx.background_executor().timer(Duration::from_secs(1)).await;
+    // `this` is a WeakEntity: the view may have closed while we waited.
+    let _ = this.update(cx, |this, cx| {
+        this.refreshed = true;
+        cx.notify();
+    });
+}));
+```
 
-Reference: [GPUI asynchronous work](https://github.com/zed-industries/zed/blob/main/crates/gpui/README.md).
+Inside the async block, `cx` is an `AsyncApp`, which you can hold across
+`.await`. To change your view, go back in through `this.update(cx, ...)`. The
+block runs on the UI thread, so it must never block: wait with the executor's
+`timer`, not `std::thread::sleep`.
+
+The checks in this chapter don't wait for real time. They move GPUI's simulated
+clock forward instead, so they finish instantly. After this chapter comes
+[quiz 2](../quizzes/README.md), which mixes handles and tasks with `observe`
+and `subscribe` from chapter 03.
+
+## Further information
+
+- [Entity: use a WeakEntity for back references](https://gpui-kit.com/docs/entity/#use-a-weakentity-for-back-references-and-callbacks)
+- [Entity: lifecycle](https://gpui-kit.com/docs/entity/#lifecycle)
+- [Context: defer until the current update ends](https://gpui-kit.com/docs/context/#defer-until-the-current-update-ends)
+- [Task](https://gpui-kit.com/docs/task/)

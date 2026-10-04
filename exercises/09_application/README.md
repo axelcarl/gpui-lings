@@ -1,36 +1,42 @@
-# Application structure · 29–33
+# Application structure
 
-[29 · Start a standalone GPUI app](../../exercises/09_application/application1.rs)
-connects the platform application, initialization, a first window, and its root
-view. The playground preview lets you open the second window without leaving
-the course. You can also run the isolated example:
+So far, the playground has started the app and opened the window for every
+lesson. This chapter is about the parts of an application around your views.
 
-```sh
-cargo run --example lesson29
+A GPUI program starts the application, sets up GPUI Kit, and opens its first
+window with a root view:
+
+```rust
+fn main() {
+    gpui_kit::application().run(|cx| {
+        gpui_kit::init(cx);
+        gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
+            cx.new(|_| Workspace::default())
+        })
+        .expect("could not open the main window");
+    });
+}
 ```
 
-The starter example opens no window until you complete `open_workspace`. The
-playground itself still launches. Use GPUI Kit's `application`, `init`, and
-`open_window` helpers; the root still implements GPUI's `Render` trait.
+Lesson 33 has a complete program like this. Besides the button in the preview,
+you can run it by itself with `cargo run --example application1`.
 
-Reference: [GPUI Kit application setup](https://gpui-kit.com/docs/installation/).
+State that belongs to the whole app, such as a setting, can live in a `Global`.
+Any context reads it with `cx.global::<T>()`, but reading doesn't subscribe: a
+view that should redraw when it changes keeps a subscription from
+`cx.observe_global::<T>(...)`. Several windows can also share one entity, each
+observing it, so a change in one window shows up in all of them.
 
-[30 · Share application state](../../exercises/09_application/application2.rs)
-puts one spacing setting in a GPUI Global. One child changes it and another
-reads it in `Render`. Keep the summary's global observer subscription alive so
-both views repaint after each change.
+Settings should survive a restart, so the app saves them to a file. Reading
+that file back can fail, and the app should fall back to a default instead of
+crashing. Colors should follow the system's light or dark appearance: choose
+them by role (background, foreground) from a palette, never by looks.
 
-[31 · Save and restore a setting](../../exercises/09_application/application3.rs)
-writes a simple preference to an injected temporary path. Restore the saved
-value and use a safe default for a missing or invalid file. The preview has
-buttons to save, load, and write invalid data without touching real app
-preferences.
+## Further information
 
-[32 · Open a second window](../../exercises/09_application/application4.rs)
-opens a detail view that shares an entity with the main view. Update from both
-windows, then keep the close observer alive so the main view can clear its
-handle and reopen a fresh detail window.
-
-[33 · Follow appearance changes](../../exercises/09_application/application5.rs)
-uses semantic tokens for light and dark surfaces. Its controls let you preview
-both modes; the view also observes real window appearance changes.
+- [Getting Started: create a project](https://gpui-kit.com/docs/getting-started/#create-a-project)
+- [Window](https://gpui-kit.com/docs/window/)
+- [Global](https://gpui-kit.com/docs/global/)
+- [Multi Window](https://gpui-kit.com/docs/multi-window/)
+- [Coding guide: theme and styling](https://gpui-kit.com/docs/coding-guides/#theme-and-styling)
+- [The Rust book: recoverable errors with `Result`](https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html)

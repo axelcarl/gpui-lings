@@ -1,208 +1,254 @@
-//! 24 — Quiz 2: command menu
-//!
-//! This is a quiz for the following lessons:
-//! - 07 Contexts & notify
-//! - 12–13 Actions & focus
-//! - 21–23 Deeper contexts & input
-//!
-//! A small command menu combines actions, focus, keyboard routing, and a
-//! cancel path. Ctrl-P opens it only while this view has focus. Arrow keys
-//! move the highlighted command, Enter chooses it, and Escape closes without
-//! changing the previous choice. Both paths return focus to the launcher.
-//!
-//! Nothing marks the broken lines. Testers reported:
-//!
-//! - The highlight doesn't follow the arrow keys, though Enter picks the
-//!   right command.
-//! - Ctrl-P does nothing while the launcher has focus.
-//! - After Escape, Ctrl-P stops working until you click the launcher.
-//!
-//! Goal: find and fix all three. The check stops at the first symptom it
-//! sees; reproduce it in the preview using only the keyboard, then trace it
-//! back to the code. Each fix reuses an idea from lessons 07–21.
-//!
-//! Example — Handling a key through the view context:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! div().track_focus(&self.menu)
-//!     .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-//!         if event.keystroke.key == "escape" {
-//!             this.dismiss(window, cx);
-//!         }
-//!     }))
-//! ```
+// This is a quiz for the following lessons:
+// - 10–11 Observe & subscribe
+// - 17–19 Lifetimes & async
+//
+// A small inbox. The `Inbox` model counts unread messages and emits an
+// `Arrived` event for each new one. A badge observes the model to show the
+// unread count, and a log subscribes to its events to list each subject.
+// Receive adds a message right away. Fetch adds one after a second, unless you
+// press Cancel first.
+//
+// Nothing marks the broken lines. Testers reported:
+//
+// - The unread badge never appears.
+// - Once it does, the badge stays at 0 however many messages arrive.
+// - The log never lists a message.
+// - Cancel doesn't stop a fetch: its message still arrives a second later.
+//
+// Find and fix all four. The check stops at the first symptom it finds.
+// Reproduce it in the preview, trace it back to the code, and fix it before
+// moving on.
 
-use crate::theme::{button, colors, focus_ring};
+use crate::theme::{badge, button, colors};
 use gpui_kit::{
-    Context, FocusHandle, IntoElement, KeyBinding, Render, Window, actions, div, prelude::*, px,
+    Context, Entity, EventEmitter, IntoElement, Render, Subscription, Task, WeakEntity, Window,
+    div, prelude::*, px,
 };
+use std::time::Duration;
 
-actions!(gpui_lings_menu, [OpenCommands]);
-
-pub struct MenuPanel {
-    launcher: FocusHandle,
-    menu: FocusHandle,
-    open: bool,
-    selected: usize,
-    chosen: Option<&'static str>,
+// The model. It isn't a view: it has no `render`.
+#[derive(Default)]
+pub struct Inbox {
+    unread: usize,
 }
 
-impl MenuPanel {
-    pub fn new(cx: &mut Context<Self>) -> Self {
-        cx.bind_keys([KeyBinding::new(
-            "ctrl-p",
-            OpenCommands,
-            Some("CommandMenuDemo"),
-        )]);
+// Sent once for every new message, with its subject.
+pub struct Arrived(pub &'static str);
+impl EventEmitter<Arrived> for Inbox {}
+
+impl Inbox {
+    fn receive(&mut self, subject: &'static str, cx: &mut Context<Self>) {
+        self.unread += 1;
+        cx.emit(Arrived(subject));
+        cx.notify();
+    }
+}
+
+// Shows how many messages are unread.
+pub struct Badge {
+    unread: usize,
+    _observer: Subscription,
+}
+
+impl Badge {
+    fn new(inbox: &Entity<Inbox>, cx: &mut Context<Self>) -> Self {
+        let unread = inbox.read(cx).unread;
+        let observer = cx.observe(inbox, move |this, _, cx| {
+            this.unread = unread;
+            cx.notify();
+        });
         Self {
-            launcher: cx.focus_handle(),
-            menu: cx.focus_handle(),
-            open: false,
-            selected: 0,
-            chosen: None,
+            unread,
+            _observer: observer,
+        }
+    }
+}
+
+impl Render for Badge {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let unread = self.unread;
+        badge(true)
+            .debug_selector(move || format!("inbox-unread-{unread}"))
+            .px_3()
+            .py_1()
+            .child(format!("{unread} unread"))
+    }
+}
+
+// Lists the subject of every message that arrives.
+pub struct Log {
+    subjects: Vec<&'static str>,
+    _subscriptions: Vec<Subscription>,
+}
+
+impl Log {
+    fn new(inbox: &Entity<Inbox>, cx: &mut Context<Self>) -> Self {
+        let _ = cx.subscribe(inbox, |this, _, arrived: &Arrived, cx| {
+            this.subjects.push(arrived.0);
+            cx.notify();
+        });
+        Self {
+            subjects: Vec::new(),
+            _subscriptions: Vec::new(),
+        }
+    }
+}
+
+impl Render for Log {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let count = self.subjects.len();
+        div()
+            .debug_selector(move || format!("inbox-log-{count}"))
+            .w(px(240.0))
+            .min_h(px(64.0))
+            .p_3()
+            .rounded_lg()
+            .border_1()
+            .border_color(colors().border)
+            .text_sm()
+            .when(count == 0, |log| log.child("No messages yet"))
+            .children(self.subjects.iter().map(|subject| div().child(*subject)))
+    }
+}
+
+pub struct InboxPanel {
+    inbox: Entity<Inbox>,
+    badge: WeakEntity<Badge>,
+    log: Entity<Log>,
+    // The fetch in flight, if any.
+    fetch: Option<Task<()>>,
+    status: &'static str,
+}
+
+impl InboxPanel {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        let inbox = cx.new(|_| Inbox::default());
+        let badge = cx.new(|cx| Badge::new(&inbox, cx));
+        let log = cx.new(|cx| Log::new(&inbox, cx));
+        Self {
+            inbox,
+            badge: badge.downgrade(),
+            log,
+            fetch: None,
+            status: "Idle",
         }
     }
 
-    fn open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.open = true;
-        self.selected = 0;
-        window.focus(&self.menu, cx);
+    fn fetch(&mut self, cx: &mut Context<Self>) {
+        self.status = "Fetching…";
         cx.notify();
+        cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(Duration::from_secs(1)).await;
+            let _ = this.update(cx, |this, cx| {
+                this.inbox
+                    .update(cx, |inbox, cx| inbox.receive("Fetched report", cx));
+                this.status = "Idle";
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
-    fn choose(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.chosen = Some(["First", "Second"][self.selected]);
-        self.open = false;
-        window.focus(&self.launcher, cx);
-        cx.notify();
-    }
-
-    fn cancel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.open = false;
-        window.focus(&self.menu, cx);
+    fn cancel(&mut self, cx: &mut Context<Self>) {
+        self.fetch = None;
+        self.status = "Cancelled";
         cx.notify();
     }
 }
 
-impl Render for MenuPanel {
+impl Render for InboxPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let c = colors();
         div()
-            .id("command-demo")
-            .on_action(cx.listener(|this, _: &OpenCommands, window, cx| {
-                this.open(window, cx);
-            }))
             .flex()
             .flex_col()
             .items_center()
             .gap_4()
             .child(
-                button("menu-launcher", "Open commands", true)
-                    .track_focus(&self.launcher)
-                    .debug_selector(|| "menu-launcher".into())
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        window.focus(&this.launcher, cx);
-                        this.open(window, cx);
-                    })),
+                div()
+                    .flex()
+                    .gap_2()
+                    .child(
+                        button("inbox-receive", "Receive", true)
+                            .debug_selector(|| "inbox-receive".into())
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.inbox
+                                    .update(cx, |inbox, cx| inbox.receive("Hello", cx));
+                            })),
+                    )
+                    .child(
+                        button("inbox-fetch", "Fetch", false)
+                            .debug_selector(|| "inbox-fetch".into())
+                            .on_click(cx.listener(|this, _, _, cx| this.fetch(cx))),
+                    )
+                    .child(
+                        button("inbox-cancel", "Cancel", false)
+                            .debug_selector(|| "inbox-cancel".into())
+                            .on_click(cx.listener(|this, _, _, cx| this.cancel(cx))),
+                    ),
             )
-            .when(self.open, |panel| {
-                panel.child(
-                    div()
-                        .id("command-menu")
-                        .key_context("CommandMenuDemo")
-                        .track_focus(&self.menu)
-                        .debug_selector(|| "command-menu".into())
-                        .w(px(200.0))
-                        .p_2()
-                        .border_1()
-                        .border_color(c.border)
-                        .rounded_lg()
-                        .focus(focus_ring)
-                        .on_key_down(cx.listener(
-                            |this, event: &gpui_kit::KeyDownEvent, window, cx| {
-                                match event.keystroke.key.as_str() {
-                                    "down" => this.selected = (this.selected + 1).min(1),
-                                    "up" => this.selected = this.selected.saturating_sub(1),
-                                    "enter" => this.choose(window, cx),
-                                    "escape" => this.cancel(window, cx),
-                                    _ => return,
-                                }
-                                cx.stop_propagation();
-                            },
-                        ))
-                        .children(["First", "Second"].into_iter().enumerate().map(
-                            |(index, label)| {
-                                div()
-                                    .debug_selector(move || format!("menu-option-{index}"))
-                                    .p_2()
-                                    .when(self.selected == index, |el| {
-                                        el.bg(c.primary).text_color(c.primary_foreground)
-                                    })
-                                    .child(label)
-                            },
-                        )),
-                )
-            })
+            .children(self.badge.upgrade())
+            .child(self.log.clone())
             .child(
                 div()
-                    .debug_selector(|| format!("menu-chosen-{}", self.chosen.unwrap_or("None")))
-                    .child(format!("Chosen: {}", self.chosen.unwrap_or("None"))),
+                    .debug_selector(|| format!("inbox-status-{}", self.status))
+                    .text_color(colors().muted_foreground)
+                    .child(self.status),
             )
     }
 }
 
+// The check that ./gpui-lings runs. Read it to see what passing means, but
+// don't change it.
 #[cfg(test)]
 mod tests {
     use super::*;
     use gpui::{Modifiers, TestAppContext};
-    use std::{cell::Cell, rc::Rc};
 
     #[gpui::test]
-    fn exercise_24(cx: &mut TestAppContext) {
-        let (panel, cx) = cx.add_window_view(|_, cx| MenuPanel::new(cx));
-        let notified = Rc::new(Cell::new(false));
-        let observed = notified.clone();
-        let _subscription = cx.update(|_, cx| cx.observe(&panel, move |_, _| observed.set(true)));
+    fn exercise_20(cx: &mut TestAppContext) {
+        let (_, cx) = cx.add_window_view(|_, cx| InboxPanel::new(cx));
         cx.update(|window, cx| window.draw(cx).clear(cx));
-        let launcher = cx.debug_bounds("menu-launcher").expect("launcher missing");
-        cx.simulate_click(launcher.center(), Modifiers::default());
-        cx.update(|window, cx| {
-            assert!(panel.read(cx).menu.is_focused(window));
-            assert!(panel.read(cx).open);
-        });
-        notified.set(false);
-        cx.simulate_keystrokes("down");
-        cx.update(|_, cx| assert_eq!(panel.read(cx).selected, 1));
-        assert!(notified.get(), "The highlight should follow the arrow keys");
-        cx.simulate_keystrokes("enter");
-        cx.update(|window, cx| {
-            assert_eq!(panel.read(cx).chosen, Some("Second"));
-            assert!(!panel.read(cx).open);
-            assert!(panel.read(cx).launcher.is_focused(window));
-        });
+        assert!(
+            cx.debug_bounds("inbox-unread-0").is_some(),
+            "the unread badge never appears"
+        );
 
-        cx.simulate_keystrokes("ctrl-p");
-        cx.update(|window, cx| {
-            assert!(
-                panel.read(cx).menu.is_focused(window),
-                "Ctrl-P should open the menu while the launcher has focus"
-            )
-        });
-        cx.simulate_keystrokes("escape");
-        cx.update(|window, cx| {
-            assert!(!panel.read(cx).open);
-            assert_eq!(panel.read(cx).chosen, Some("Second"));
-            assert!(
-                panel.read(cx).launcher.is_focused(window),
-                "Escape should return focus to the launcher"
-            );
-        });
-        cx.simulate_keystrokes("ctrl-p");
-        cx.update(|window, cx| {
-            assert!(
-                panel.read(cx).menu.is_focused(window),
-                "Ctrl-P should reopen the menu after Escape"
-            )
-        });
+        let receive = cx.debug_bounds("inbox-receive").unwrap();
+        cx.simulate_click(receive.center(), Modifiers::default());
+        cx.simulate_click(receive.center(), Modifiers::default());
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        assert!(
+            cx.debug_bounds("inbox-unread-2").is_some(),
+            "the badge stays at 0 however many messages arrive"
+        );
+        assert!(
+            cx.debug_bounds("inbox-log-2").is_some(),
+            "the log never lists a message"
+        );
+
+        // A fetch that runs to the end delivers its message after a second.
+        let fetch = cx.debug_bounds("inbox-fetch").unwrap();
+        cx.simulate_click(fetch.center(), Modifiers::default());
+        cx.executor().advance_clock(Duration::from_secs(1));
+        cx.run_until_parked();
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        assert!(
+            cx.debug_bounds("inbox-unread-3").is_some(),
+            "Fetch should add a message after a second"
+        );
+
+        // A cancelled one must not.
+        let cancel = cx.debug_bounds("inbox-cancel").unwrap();
+        cx.simulate_click(fetch.center(), Modifiers::default());
+        cx.run_until_parked();
+        cx.simulate_click(cancel.center(), Modifiers::default());
+        cx.executor().advance_clock(Duration::from_secs(2));
+        cx.run_until_parked();
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        assert!(
+            cx.debug_bounds("inbox-unread-3").is_some()
+                && cx.debug_bounds("inbox-status-Cancelled").is_some(),
+            "Cancel doesn't stop a fetch: its message still arrives a second later"
+        );
     }
 }

@@ -1,22 +1,11 @@
-//! 32 — Open a second window
-//!
-//! A detail window can share an Entity with the main view. Both windows
-//! observe that model, so a change from either redraws the other. GPUI Kit's
-//! open_window creates the second window. Observe when it closes, and clear
-//! the stored handle so Open can work again.
-//!
-//! Goal: open detail, update the count from either window, close detail, and
-//! open it again. Retain the on_window_closed Subscription until it closes.
-//!
-//! Example — Sharing one entity between views:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let detail_model = self.model.clone();
-//! let (_, detail) = gpui_kit::open_window(WindowOptions::default(), cx, |_, cx| {
-//!     cx.new(|cx| DetailView::new(detail_model, cx))
-//! })?;
-//! // Both views read and update the same model; detail owns its own view state.
-//! ```
+// Two windows can show the same data. The main panel and the detail window
+// below each hold a handle to one `CountModel` and observe it, so an update
+// from either window redraws both.
+//
+// When the detail window closes, the main panel has to forget it, or Open
+// detail would think it's still open. `cx.on_window_closed` registers a
+// callback for that, and returns a `Subscription` that keeps it registered.
+// Open detail, increment from both windows, close detail, then open it again.
 
 use crate::theme::button;
 use gpui_kit::{
@@ -129,8 +118,7 @@ impl WindowsPanel {
             }
         });
         // TODO: `subscription` is dropped when `open` returns, which removes
-        // the callback before the detail window can close. Store it in
-        // `self._close_subscription`, so the panel hears about the close.
+        // the callback before the detail window can close. Keep it in the panel.
         cx.notify();
     }
 }
@@ -188,7 +176,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext, VisualTestContext};
 
     #[gpui::test]
-    fn exercise_32(cx: &mut TestAppContext) {
+    fn exercise_36(cx: &mut TestAppContext) {
         cx.update(gpui_kit::init);
         let (panel, cx) = cx.add_window_view(|_, cx| WindowsPanel::new(cx));
         cx.update(|window, cx| window.draw(cx).clear(cx));

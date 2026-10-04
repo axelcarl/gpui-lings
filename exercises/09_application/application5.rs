@@ -1,22 +1,11 @@
-//! 33 — Follow appearance changes
-//!
-//! A view can read Window::appearance and observe later changes. Keep colors
-//! in semantic tokens so the same content remains legible in light and dark
-//! modes. The preview buttons override appearance for deterministic practice;
-//! Follow system removes the override. The window observer still handles real
-//! system changes while the app is running.
-//!
-//! Goal: Preview dark should show light foreground text on the dark surface.
-//! Read the semantic foreground token instead of using the surface color.
-//!
-//! Example — Checking window appearance:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let dark = matches!(window.appearance(),
-//!     WindowAppearance::Dark | WindowAppearance::VibrantDark);
-//! let label = if dark { "Dark appearance" } else { "Light appearance" };
-//! div().child(label)
-//! ```
+// Your app should be readable in light and dark mode alike. The trick is to
+// choose colors by their role rather than by how they look. A palette has a
+// `background` for surfaces and a `foreground` for text on them, and each
+// palette pairs the two so they contrast.
+//
+// A view reads the system's choice with `window.appearance()`, and this one
+// also redraws when the system switches while it runs. Switch preview flips
+// between the modes, so you can check both without changing your settings.
 
 // DARK and LIGHT are the playground's two palettes.
 use crate::theme::{DARK, LIGHT, button, focus_ring};
@@ -125,7 +114,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_33(cx: &mut TestAppContext) {
+    fn exercise_37(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(AppearancePanel::new);
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let switch = cx.debug_bounds("appearance-switch").unwrap();

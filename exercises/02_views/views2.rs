@@ -1,20 +1,11 @@
-//! 05 — Update a child entity
-//!
-//! TogglePanel is a view with its own state. The parent holds an
-//! Entity<TogglePanel> and renders it as a child. The listener receives the
-//! child's mutable state, and cx.notify() requests a redraw of that entity.
-//!
-//! Goal: the first click reveals the signal; the second hides it. Correct the
-//! assignment to active. Reset preview recreates the child in its initial
-//! state. The parent does not need to know how the child's toggle works.
-//!
-//! Example — Creating and rendering a child entity:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! let child = cx.new(|_| TogglePanel::default());
-//! // Keep the handle in the parent; cloning it keeps the same entity.
-//! div().child(child.clone())
-//! ```
+// So far the playground has owned all the state. Now `TogglePanel` is a view of
+// its own: a struct that implements `Render`. GPUI keeps it in an *entity* and
+// calls its `render` whenever it needs to draw it, so the panel keeps its
+// `active` flag from one frame to the next. Its parent only holds a handle to
+// it, and doesn't need to know how the toggle works.
+//
+// Click the button a few times in the preview. The first click should show the
+// signal, and the second should hide it again.
 
 use crate::theme::{badge, button, colors};
 use gpui_kit::{Context, IntoElement, Render, Window, div, prelude::*, px};

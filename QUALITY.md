@@ -240,3 +240,121 @@ starter/reference verifier, formatting, and Clippy with `-D warnings` on all
 three packages. Lesson 30's preview looks correct even in its starter state,
 because the control's notify redraws the whole window; only the hidden `updates`
 counter shows the bug. Showing that counter would make the fault visible.
+
+## Rustlings style pass — October 4, 2026
+
+Lessons now read like Rustlings 6.5's exercises, compared side by side with a
+local copy:
+
+- **Exercise files.** The `//!` header (title, concept, Goal paragraph and an
+  "Example —" block with an "illustrative names" disclaimer) became a short
+  `//` introduction in the second person, with backticked identifiers. The
+  terminal and preview already show the title and goal. TODOs stay at the line
+  to change. They say what's wrong and name a new API, but no longer spell out
+  the finished call in lessons 08, 10, 13, 14, 15, 21, 22, 23, 29 and 32; the
+  hints still do. Where the file already does something similar, the TODO
+  points at it, as Rustlings' `vecs2` does. Lesson 09 shows the shape of
+  `update` with `???` holes. Lesson 01's introduction now explains the tool, as
+  Rustlings' `intro1` does.
+- **Background.** Rustlings leans on the Rust book. GPUI has none, so chapter
+  READMEs now explain their ideas with one small example and end in "Further
+  information" links to sections of the GPUI Kit guides, which cover GPUI one
+  topic at a time. `exercises/README.md` maps chapters to guides, as Rustlings'
+  does to book chapters, and recommends Zed's *Ownership and data flow in GPUI*
+  as one longer read. The chapter 02 README explains how to read a check, since
+  every lesson relies on one and testing is taught in lesson 35.
+- **Hints.** Every hint explains why the fix works, refers back to earlier
+  lessons by number, and ends with a link to the matching guide section. The
+  guide now keeps paragraph breaks when wrapping, never splits a link, and
+  wraps the one-shot `hint` command to the terminal width.
+- **Plan.** `lesson-plan.md` gained a lesson style section in the authoring
+  checklist and seven progression changes taken from Rustlings, from an early
+  quiz on the entity model to chapter names. None of those change lesson IDs
+  yet.
+
+The unused `lessons::instructions` parser for `//!` headers was removed; the
+catalog test now checks that every exercise opens with an introduction. All 29
+hint links and 44 README links return 200, and every `#anchor` exists on its
+page. Verified: guide and shared tests (33 + 1), the 38-lesson
+starter/reference verifier, formatting, and Clippy with `-D warnings` on all
+three packages. No preview code changed, so no native visual pass was needed.
+Nobody has playtested the new wording yet.
+
+## Progression from Rustlings — October 4, 2026
+
+The five progression changes planned earlier the same day are in. The course
+has 42 lessons now, renumbered in order; see the curriculum in the README.
+
+- **Quiz 1 (12), built from a description.** After chapter 03, the learner
+  writes a tally view: a label and a row with Tap and Clear. The starter's
+  `render` returns a placeholder line, so the playground still launches.
+- **Quiz 2 (20), an inbox after chapter 05.** Four unmarked faults from lessons
+  that no quiz had used: a weak handle where the owner needs a strong one (17),
+  an observer that copies a stale value (10), a discarded subscription (11),
+  and a detached task that Cancel can't stop (19). Leaving any one fault in
+  fails the check with that fault's symptom, verified one at a time in a
+  temporary copy.
+- **Chapter 04 is `04_keyboard`, one idea per lesson:** focus (13), a key
+  handler the learner writes (14, new), an action with an unscoped binding (15,
+  new), and a key context (16, formerly 12). Focus now comes first.
+- **More code later.** Lesson 24 has the learner write three drag handlers,
+  lesson 29 both tasks, and lesson 26 a second way out of the overlay. The
+  audit shows 17, 13 and 10 changed lines; before chapter 06, lessons stay at
+  one or two short edits.
+- **Repetition within a file.** Lesson 11 subscribes to a second event type,
+  and lessons 24 and 26 each handle two paths that need the same cleanup.
+- **Lessons 02 and 03 are views.** The fix sits in a `cx.listener` closure and
+  in `render`. Lesson 01 stays a plain function checked by `rustc` alone, so a
+  fresh clone still passes its first check without GPUI's test build. The
+  first native check moved from lesson 04 to 02.
+- **Names.** `04_keyboard`, `06_layout_states` and `07_dispatch` replace
+  `04_interaction`, `06_responsive` and `07_deeper`; `cx.defer` moved to
+  chapter 05 as lesson 18. The playground compiles each exercise as a module
+  named after its file and looks previews up by name, so lessons 01–06 lost
+  their special cases in `lib.rs`. The standalone example is
+  `cargo run --example application1`.
+- **Saved progress.** The state file now has a version 2 header. Version 1
+  files map moved names (`interaction1` to `keyboard4`, `quiz1` to `quiz3`, and
+  so on) on load, so reused names can't be confused; the ID-based legacy file
+  counts positions in a frozen copy of the 38-lesson order. Guide tests cover
+  both.
+
+Verified: guide and shared tests (33 + 1), playground app checks including one
+that opens and resets every lesson's preview, the 42-lesson starter/reference
+verifier, quiz 2's faults one at a time, formatting, Clippy with
+`-D warnings` on all three packages, and all 60 links in hints and READMEs.
+Not done: a learner playtest. The native visual pass follows.
+
+## Native visual pass of new and changed previews — October 4, 2026
+
+Real Metal frames of the playground window, rendered offscreen with GPUI's
+`VisualTestAppContext::capture_screenshot`, for lessons 02, 03, 11–16, 20, 24,
+26, 28 and 29. Each lesson was captured in its starter state and with the
+reference fixes applied, before and after driving it with Tab, Enter, arrow
+keys, shortcuts and a mouse drag, in light and dark appearance. Every starter
+shows its bug in the preview (02 stays at 0, 03 doesn't celebrate at 3, 11's
+parent hears nothing, 14 ignores the arrows, 15 ignores Ctrl-L, 20 has no badge
+and an empty log, 24 never moves and stays Dragging, 26 ignores Escape, 29
+stays Loading), and every solved preview shows the intended result.
+
+The pass found and fixed:
+
+- **Focus rings filled whole surfaces grey.** The ring is a spread shadow
+  drawn behind the element, so a focusable surface without a background showed
+  it across its interior. Lessons 13–16 and quizzes 3–5 now give those surfaces
+  the card background, and the ring is an outline.
+- **Two buttons couldn't be reached with Tab.** Lesson 26's Open and quiz 4's
+  launcher track focus handles that weren't Tab stops, so a keyboard user
+  couldn't start either flow, although quiz 4 asks for keyboard-only use. Both
+  handles are now Tab stops.
+- **Quiz 1 started as a blank card, and its Reset sat under the playground's
+  own Reset.** The starter now shows "Your tally view goes here", and the
+  quiz's button is Clear.
+- **Smaller:** lessons 15 and 16 keep one panel width when their focus text
+  changes, lesson 13's pad no longer wraps to three lines, and lesson 29 says
+  "Not started" instead of ": 0" before Start.
+
+The capture tool was temporary: a hidden constructor for the playground view,
+an example, and dev-dependencies on `gpui-pre-macos` (test-support) and
+`image`. It was removed afterwards. Re-verified after the fixes: all checks
+above, plus quiz 4's faults one at a time.

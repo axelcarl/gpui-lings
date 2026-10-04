@@ -1,27 +1,11 @@
-//! 18 — Keep a disabled control disabled
-//!
-//! Looking disabled is not the same as being disabled. While disabled, this
-//! control already dims itself, drops its hover style and leaves the Tab order
-//! (opacity, when(!disabled, hover), tab_index(-1)). Its handlers still run,
-//! though: a click still arrives, and code can still focus the control and
-//! send it Enter. Styling only tells the user; the view's state must decide.
-//!
-//! Goal: clicking or pressing Enter toggles selection while enabled, and does
-//! nothing while disabled. The click and key handlers both call
-//! toggle_selection, so one guard there covers every input. Try the control
-//! with the mouse, Tab and Enter, then disable it and try again.
-//!
-//! Example — Guarding an action where every input path meets:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! fn submit(&mut self, cx: &mut Context<Self>) {
-//!     if self.busy {
-//!         return; // Ignore clicks and shortcuts alike while busy.
-//!     }
-//!     self.submitted += 1;
-//!     cx.notify();
-//! }
-//! ```
+// Looking disabled isn't the same as being disabled. While disabled, this
+// control dims itself, drops its hover style and leaves the Tab order. Its
+// handlers still run, though: a click still arrives, and code can still focus
+// it and send it Enter. The styling only informs the user. The view's state
+// has to decide what actually happens.
+//
+// Try the control with the mouse, and with Tab and Enter. Then disable it and
+// try again.
 
 use crate::theme::{button, colors, focus_ring};
 use gpui_kit::{Context, FocusHandle, IntoElement, Render, Role, Window, div, prelude::*, px};
@@ -152,7 +136,7 @@ mod tests {
     use gpui::{Modifiers, TestAppContext};
 
     #[gpui::test]
-    fn exercise_18(cx: &mut TestAppContext) {
+    fn exercise_23(cx: &mut TestAppContext) {
         let (panel, cx) = cx.add_window_view(|_, cx| StatesPanel::new(cx));
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let toggle = cx.debug_bounds("state-toggle").expect("toggle missing");

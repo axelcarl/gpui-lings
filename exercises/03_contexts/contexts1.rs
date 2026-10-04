@@ -1,23 +1,16 @@
-//! 07 — Tell GPUI what changed
-//!
-//! Context<Self> is the app context plus the identity of this entity. The name
-//! cx (or ctx) is just a variable name. Changing a Rust field does not announce
-//! a change to GPUI: cx.notify() invalidates the view and informs its observers.
-//!
-//! Goal: switch on the signal and notify GPUI from the click handler.
-//! Add the missing context call after changing active. An incidental repaint
-//! from hovering is not a substitute for notification: other views also need it.
-//! App manages entities; Context<T> knows which entity T is changing; Window
-//! manages window-local things such as focus. The callback provides both.
-//!
-//! Example — Notifying after a field changes:
-//! (Illustrative names and fields; adapt them to the view below.)
-//! ```ignore
-//! fn rename(&mut self, name: String, cx: &mut Context<Self>) {
-//!     self.name = name;
-//!     cx.notify();
-//! }
-//! ```
+// You've already met `cx` in the listeners of lessons 02 and 05. It's a
+// `Context<Self>`: access to the whole app, plus the identity of the entity
+// being updated. (`cx` is only a name. Some code calls it `ctx`, and it's the
+// same type.)
+//
+// Changing a field on your view doesn't tell GPUI anything. GPUI renders a view
+// again when it's told the view changed, and `cx.notify()` is how you tell it.
+// Other entities that observe this one hear about the change through the same
+// call, as you'll see in lesson 10.
+//
+// In the preview, the signal may still show up when you move the mouse, because
+// hovering happens to redraw the window. Don't rely on that: observers and
+// views elsewhere only hear about a change through `notify`.
 
 use crate::theme::button;
 use gpui_kit::{Context, IntoElement, Render, Window, div, prelude::*};
